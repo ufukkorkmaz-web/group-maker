@@ -3,10 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Exam Group Mixer</title>
+<title>Sınav Grup Karma Sistemi</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>
 /* Layout: upload panel on the left, exam tabs + group cards on the right; stacks on phones. */
+/* Designed, created and programmed by Ufuk Korkmaz in 2026. */
 :root {
   --bg: #F2F4F8;
   --surface: #FFFFFF;
@@ -191,8 +192,8 @@ td.na { color: var(--muted); }
 <div class="app">
   <header>
     <div>
-      <h1>Exam Group Mixer</h1>
-      <p class="lede">Upload the score sheet. Students are ranked by Yüzde and dealt out from the top and the bottom, so every group has a similar average and a mix of grade levels.</p>
+      <h1>Sınav Grup Karma Sistemi</h1>
+      <p class="lede">Sınav sonuçlarına göre öğrencileri her sınavda farklı gruplarda olmak üzere listeleyerek çalışır. Sistemi başlatmak için "excel" dosyası yükleyin.</p>
     </div>
     <label class="k-control" for="kSelect">Groups per exam
       <select id="kSelect" aria-label="Number of groups"></select>
@@ -204,7 +205,7 @@ td.na { color: var(--muted); }
       <h2 id="rosterTitle">Score sheet</h2>
       <label class="drop" id="drop" for="fileIn">
         <strong>Upload Excel file</strong>
-        <span class="muted" style="font-size:13px">Click to choose, or drop the file here (.xlsx, .xls, .csv)</span>
+        <span class="muted" style="font-size:13px">Seçmek için tıklayın ya da dosyayı sürükleyerek seçili alanın içerisine bırakın. (.xlsx, .xls, .csv)</span>
         <input type="file" id="fileIn" accept=".xlsx,.xlsm,.xls,.csv">
       </label>
       <div class="cols" id="cols" aria-label="Columns the page looks for"></div>
