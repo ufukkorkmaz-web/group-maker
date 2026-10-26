@@ -46,7 +46,7 @@ body {
   background: var(--bg);
   color: var(--ink);
   font: 15px/1.45 var(--font-body);
-  padding-block: 24px 48px;
+  padding-block: 24px 64px;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
@@ -176,8 +176,12 @@ tbody tr:last-child td { border-bottom: 0; }
 .cell { display: inline-block; min-width: 26px; text-align: center; padding: 3px 6px; border-radius: 4px; background: var(--surface-2); font: 500 13px/1.2 var(--font-mono); }
 td.na { color: var(--muted); }
 
-#copybox { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
-#copytext { height: 140px; font: 13px/1.5 var(--font-mono); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; width: 100%; resize: vertical; }
+.credit {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+  text-align: center; font-size: 13px; color: var(--muted);
+  background: var(--bg); border-top: 1px solid var(--line);
+  padding: 9px max(16px, env(safe-area-inset-right, 0px)) calc(9px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
@@ -206,19 +210,14 @@ td.na { color: var(--muted); }
       <div class="cols" id="cols" aria-label="Columns the page looks for"></div>
       <p class="status" id="rosterStatus" role="status" aria-live="polite"></p>
       <div id="rosterInfo" style="display:flex;flex-direction:column;gap:12px"></div>
-      <div class="row"><button data-action="sample">Load sample</button></div>
     </section>
 
     <section class="main" aria-label="Exams">
       <div class="tabs" id="tabs" role="tablist"></div>
       <div id="view" style="display:flex;flex-direction:column;gap:14px"></div>
-      <div id="copybox" hidden>
-        <label for="copytext" class="muted" style="font-size:13px">Select all and copy (Ctrl/Cmd+C):</label>
-        <textarea id="copytext" readonly></textarea>
-        <div><button data-action="closecopy">Close</button></div>
-      </div>
     </section>
   </div>
+  <footer class="credit">Made by Ufuk Korkmaz - 2026</footer>
 </div>
 
 <script>
@@ -327,25 +326,6 @@ td.na { color: var(--muted); }
     }, function () { finish({ error: 'Could not read that file.' }); });
   }
 
-  /* ---------- sample ---------- */
-  var FIRST = ['Ayşe', 'Mehmet', 'Zeynep', 'Ahmet', 'Elif', 'Mustafa', 'Defne', 'Emre', 'Selin', 'Can', 'Deniz', 'Kerem', 'Ece', 'Burak', 'Naz', 'Ozan', 'İpek', 'Arda', 'Melis', 'Barış', 'Yağmur', 'Kaan', 'Derya', 'Efe'];
-  var LAST = ['Yılmaz', 'Kaya', 'Demir', 'Çelik', 'Şahin', 'Aydın', 'Özdemir', 'Arslan', 'Doğan', 'Kılıç', 'Aslan', 'Çetin', 'Koç', 'Kurt', 'Özkan', 'Polat'];
-  function sampleStudents() {
-    var counts = [14, 12, 12, 10], out = [], seed = 7, used = {}, n = 0;
-    function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
-    counts.forEach(function (c, gi) {
-      for (var i = 0; i < c; i++) {
-        var f, l, key, t = 0;
-        do { f = FIRST[(n * 5 + t) % FIRST.length]; l = LAST[(n * 7 + 3 + t * 3) % LAST.length]; key = f + ' ' + l; t++; } while (used[key]);
-        used[key] = 1;
-        var sube = 'ABC'[i % 3];
-        out.push({ id: 's' + n, no: String(1100 + n * 7), name: key, grade: gi + 5, sube: sube, cls: (gi + 5) + ' ' + sube, pct: Math.round((35 + rnd() * 62) * 10) / 10 });
-        n++;
-      }
-    });
-    return out;
-  }
-
   /* ---------- mixing ---------- */
   function studentMap() { var m = new Map(); state.students.forEach(function (s) { m.set(s.id, s); }); return m; }
   function pk(a, b) { return a < b ? a + '|' + b : b + '|' + a; }
@@ -425,11 +405,7 @@ td.na { color: var(--muted); }
   }
   function copyText(text) {
     var st = $('#rosterStatus');
-    function fallback() {
-      $('#copybox').hidden = false;
-      var ta = $('#copytext'); ta.value = text; ta.focus(); ta.select();
-      say(st, 'Copy blocked here. The text is selected below.', 'bad');
-    }
+    function fallback() { say(st, 'Copying is blocked in this browser. Use Download Excel instead.', 'bad'); }
     try { navigator.clipboard.writeText(text).then(function () { say(st, 'Copied. Paste it into Excel or Sheets.', 'ok'); }, fallback); } catch (e) { fallback(); }
   }
 
@@ -446,7 +422,7 @@ td.na { color: var(--muted); }
     var ranked = state.students.slice().sort(function (a, b) { return b.pct - a.pct; });
     $('#rosterInfo').innerHTML =
       '<dl class="facts-list">' +
-      '<dt>File</dt><dd>' + (state.sample ? 'Sample data (not your students)' : esc(state.file || '')) + '</dd>' +
+      '<dt>File</dt><dd>' + esc(state.file || '') + '</dd>' +
       '<dt>Students</dt><dd>' + n + '</dd>' +
       '<dt>Yüzde</dt><dd>' + fmt(Math.min.apply(null, pcts)) + ' to ' + fmt(Math.max.apply(null, pcts)) + '</dd>' +
       '<dt>Classes</dt><dd>' + classes.map(esc).join(', ') + '</dd></dl>' +
@@ -705,14 +681,7 @@ td.na { color: var(--muted); }
     var b = ev.target.closest('[data-action]');
     if (!b) return;
     var a = b.dataset.action, exam = activeExam();
-    if (a === 'sample') {
-      arm(b, 'Replace students? Click again', function () {
-        state.students = sampleStudents(); state.found = null; state.file = ''; state.sample = true;
-        resetMixes(); save(); renderRoster(); render();
-        say($('#rosterStatus'), 'Sample students loaded.', 'ok');
-      });
-    }
-    else if (a === 'tab') { state.active = b.dataset.id; sel = null; save(); render(); }
+    if (a === 'tab') { state.active = b.dataset.id; sel = null; save(); render(); }
     else if (a === 'addexam') {
       var e = { id: uid(), name: 'Exam ' + (state.exams.length + 1), groups: null };
       state.exams.push(e); state.active = e.id; save(); render();
@@ -728,7 +697,6 @@ td.na { color: var(--muted); }
     else if (a === 'copy' && exam) copyText(tsvExam(exam));
     else if (a === 'copymatrix') copyText(tsvMatrix());
     else if (a === 'xlsx') downloadExcel();
-    else if (a === 'closecopy') $('#copybox').hidden = true;
     else if (a === 'seat' && exam) {
       var g = +b.dataset.g, i = +b.dataset.i;
       if (!sel) sel = { e: exam.id, g: g, i: i };
@@ -768,16 +736,15 @@ td.na { color: var(--muted); }
 
   /* ---------- boot ---------- */
   state = load();
+  if (state && state.sample) state = null;
   if (!state) {
-    state = { students: sampleStudents(), k: 6, avoid: true, sample: true, found: null, file: '', active: null, exams: [
+    state = { students: [], k: 6, avoid: true, found: null, file: '', active: null, exams: [
       { id: uid(), name: 'Exam 1', groups: null },
       { id: uid(), name: 'Exam 2', groups: null },
       { id: uid(), name: 'Exam 3', groups: null }
     ] };
-    mixExam(state.exams[0]); mixExam(state.exams[1]);
     state.active = state.exams[0].id;
   }
-  if (state.sample) $('#rosterStatus').textContent = 'Sample students are loaded. Upload your file to replace them.';
   save();
   renderRoster();
   render();
