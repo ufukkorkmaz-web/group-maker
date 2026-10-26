@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Exam Group Mixer</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: upload panel on the left, exam tabs + group cards on the right; stacks on phones. */
+:root {
+  --bg: #F2F4F8;
+  --surface: #FFFFFF;
+  --surface-2: #E9EDF5;
+  --ink: #142033;
+  --muted: #5A687C;
+  --line: #D8DEE8;
+  --accent: #3345C9;
+  --accent-ink: #FFFFFF;
+  --good: #1B7F55;
+  --warn: #B4600F;
+  --g0: #2F6FDE; --g1: #D9622B; --g2: #1E9E6A; --g3: #B03FA3;
+  --g4: #C99A0A; --g5: #0E94AE; --g6: #7A55D6; --g7: #D2455F;
+  --font-display: "Bricolage Grotesque", "IBM Plex Sans", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0F1522; --surface: #171F30; --surface-2: #1F293E; --ink: #E6EBF5; --muted: #9AA8BF;
+    --line: #2B3650; --accent: #8B9BFF; --accent-ink: #0F1522; --good: #4CC794; --warn: #E9A15C;
+    --g0: #6C9CFF; --g1: #F08A57; --g2: #4CC794; --g3: #D77BCB;
+    --g4: #E7BB3C; --g5: #4FC3DA; --g6: #A58CF0; --g7: #F27C92;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0F1522; --surface: #171F30; --surface-2: #1F293E; --ink: #E6EBF5; --muted: #9AA8BF;
+  --line: #2B3650; --accent: #8B9BFF; --accent-ink: #0F1522; --good: #4CC794; --warn: #E9A15C;
+  --g0: #6C9CFF; --g1: #F08A57; --g2: #4CC794; --g3: #D77BCB;
+  --g4: #E7BB3C; --g5: #4FC3DA; --g6: #A58CF0; --g7: #F27C92;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.45 var(--font-body);
+  padding-block: 24px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.app { max-width: 1280px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+h1, h2 { font-family: var(--font-display); margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+h1 { font-size: 28px; line-height: 1.1; }
+h2 { font-size: 17px; }
+p { margin: 0; }
+.muted { color: var(--muted); }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+header { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: flex-end; justify-content: space-between; }
+header .lede { color: var(--muted); max-width: 64ch; margin-top: 6px; }
+.k-control { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+
+.layout { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 860px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+
+input[type="text"], select {
+  font: inherit; color: var(--ink); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; min-width: 0;
+}
+select { padding: 6px 8px; }
+
+button, .btn {
+  font: inherit; font-weight: 500; cursor: pointer; color: var(--ink);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
+  padding: 7px 12px; display: inline-flex; align-items: center; gap: 6px; line-height: 1.2;
+}
+button:hover, .btn:hover { background: var(--surface-2); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+button.primary:hover { filter: brightness(1.08); background: var(--accent); }
+button.danger { color: var(--warn); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.status { min-height: 1.4em; font-size: 13px; color: var(--muted); }
+.status.ok { color: var(--good); }
+.status.bad { color: var(--warn); }
+
+.drop {
+  position: relative; display: flex; flex-direction: column; gap: 4px; align-items: center; text-align: center;
+  padding: 22px 14px; border: 2px dashed var(--line); border-radius: 10px; background: var(--bg); cursor: pointer;
+}
+.drop:hover, .drop.over { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--bg)); }
+.drop strong { font: 700 16px/1.2 var(--font-display); }
+.drop input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.drop:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.cols { display: flex; flex-wrap: wrap; gap: 6px; }
+.col { font: 500 12px/1 var(--font-mono); padding: 6px 8px; border-radius: 4px; background: var(--surface-2); color: var(--muted); display: inline-flex; gap: 6px; }
+.col.on { color: var(--good); background: color-mix(in srgb, var(--good) 14%, var(--surface)); }
+.col.on::before { content: "✓"; }
+
+.facts-list { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 14px; margin: 0; }
+.facts-list dt { color: var(--muted); }
+.facts-list dd { margin: 0; font-variant-numeric: tabular-nums; }
+
+details summary { cursor: pointer; font-weight: 500; font-size: 14px; }
+.scroll { max-height: 280px; overflow: auto; margin-top: 8px; border: 1px solid var(--line); border-radius: 6px; }
+.scroll table { font-size: 13px; }
+.scroll th { position: sticky; top: 0; }
+
+.gchip {
+  --c: var(--g0);
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 26px; height: 22px; padding: 0 7px; border-radius: 11px;
+  font: 500 12px/1 var(--font-mono);
+  background: color-mix(in srgb, var(--c) 17%, var(--surface));
+  color: color-mix(in srgb, var(--c) 70%, var(--ink));
+  border: 1px solid color-mix(in srgb, var(--c) 35%, var(--surface));
+}
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.tab { border-radius: 6px; }
+.tab[aria-selected="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.tab.matrix-tab { margin-left: auto; }
+.tab .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
+.tab .dot.on { background: var(--good); }
+.tab[aria-selected="true"] .dot { box-shadow: 0 0 0 1px var(--bg); }
+
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px 12px; align-items: center; }
+.toolbar input[type="text"] { width: 180px; font-weight: 600; }
+.check { display: inline-flex; align-items: flex-start; gap: 8px; font-size: 13px; color: var(--muted); max-width: 380px; }
+.check input { margin-top: 3px; }
+.spacer { flex: 1 1 0; }
+
+.summary { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; justify-content: space-between; }
+.summary .facts { font-size: 14px; }
+.badge { font: 500 12px/1 var(--font-mono); padding: 5px 8px; border-radius: 4px; }
+.badge.good { color: var(--good); background: color-mix(in srgb, var(--good) 14%, var(--surface)); }
+.badge.warn { color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, var(--surface)); }
+.badge.plain { color: var(--ink); background: var(--surface-2); }
+
+.groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 270px), 1fr)); gap: 12px; }
+.group { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; min-width: 0; }
+.group-head { padding: 12px 12px 10px; display: flex; flex-direction: column; gap: 8px; border-bottom: 1px solid var(--line); }
+.group-title { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.group-title h3 { font: 700 18px/1 var(--font-display); margin: 0; }
+.group-title span { font: 400 12px/1 var(--font-mono); color: var(--muted); }
+.bar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; gap: 1px; background: var(--surface-2); }
+.bar i { background: var(--c); display: block; }
+.seats { list-style: none; margin: 0; padding: 4px; display: flex; flex-direction: column; }
+.seat {
+  width: 100%; border: 0; border-radius: 6px; background: transparent; padding: 6px 8px;
+  display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 8px; align-items: center; text-align: left;
+  font-weight: 400;
+}
+.seat:hover { background: var(--surface-2); }
+.seat .no { font: 400 12px/1 var(--font-mono); color: var(--muted); }
+.seat .nm { overflow-wrap: anywhere; }
+.seat .pct { font: 400 12px/1 var(--font-mono); color: var(--muted); }
+.seat[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 16%, var(--surface)); outline: 2px solid var(--accent); outline-offset: -2px; }
+
+.empty { background: var(--surface); border: 1px dashed var(--line); border-radius: 10px; padding: 36px 20px; text-align: center; display: flex; flex-direction: column; gap: 12px; align-items: center; }
+.empty h3 { margin: 0; font: 700 18px/1.2 var(--font-display); }
+
+.table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { padding: 7px 12px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; background: var(--surface-2); }
+tbody tr:last-child td { border-bottom: 0; }
+.cell { display: inline-block; min-width: 26px; text-align: center; padding: 3px 6px; border-radius: 4px; background: var(--surface-2); font: 500 13px/1.2 var(--font-mono); }
+td.na { color: var(--muted); }
+
+#copybox { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+#copytext { height: 140px; font: 13px/1.5 var(--font-mono); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; width: 100%; resize: vertical; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+
+</head>
+<body>
+<div class="app">
+  <header>
+    <div>
+      <h1>Exam Group Mixer</h1>
+      <p class="lede">Upload the score sheet. Students are ranked by Yüzde and dealt out from the top and the bottom, so every group has a similar average and a mix of grade levels.</p>
+    </div>
+    <label class="k-control" for="kSelect">Groups per exam
+      <select id="kSelect" aria-label="Number of groups"></select>
+    </label>
+  </header>
+
+  <div class="layout">
+    <section class="panel" aria-labelledby="rosterTitle">
+      <h2 id="rosterTitle">Score sheet</h2>
+      <label class="drop" id="drop" for="fileIn">
+        <strong>Upload Excel file</strong>
+        <span class="muted" style="font-size:13px">Click to choose, or drop the file here (.xlsx, .xls, .csv)</span>
+        <input type="file" id="fileIn" accept=".xlsx,.xlsm,.xls,.csv">
+      </label>
+      <div class="cols" id="cols" aria-label="Columns the page looks for"></div>
+      <p class="status" id="rosterStatus" role="status" aria-live="polite"></p>
+      <div id="rosterInfo" style="display:flex;flex-direction:column;gap:12px"></div>
+      <div class="row"><button data-action="sample">Load sample</button></div>
+    </section>
+
+    <section class="main" aria-label="Exams">
+      <div class="tabs" id="tabs" role="tablist"></div>
+      <div id="view" style="display:flex;flex-direction:column;gap:14px"></div>
+      <div id="copybox" hidden>
+        <label for="copytext" class="muted" style="font-size:13px">Select all and copy (Ctrl/Cmd+C):</label>
+        <textarea id="copytext" readonly></textarea>
+        <div><button data-action="closecopy">Close</button></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+(function () {
+  var LS = 'exam-group-mixer-v3';
+  var LETTERS = 'ABCDEFGHIJ';
+  var COLS = [['no', 'Okul Nu'], ['name', 'Adı-Soyadı'], ['sinif', 'Sınıf'], ['sube', 'Şube'], ['pct', 'Yüzde']];
+  var KEYS = {
+    no: ['okulnu', 'okulno', 'okulnumarasi', 'ogrencino', 'ogrencinumarasi', 'numara'],
+    name: ['adisoyadi', 'adsoyad', 'adisoyad', 'adsoyadi', 'ogrenciadisoyadi', 'isim'],
+    sube: ['sube'],
+    sinif: ['sinif', 'seviye'],
+    pct: ['yuzde', 'yuzdesi', 'basariyuzdesi', 'yuzdelik']
+  };
+  var state = null, sel = null, dl = null;
+  var $ = function (s) { return document.querySelector(s); };
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function uid() { return 'e' + Math.random().toString(36).slice(2, 8); }
+  function shuffle(a) {
+    a = a.slice();
+    for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = a[i]; a[i] = a[j]; a[j] = t; }
+    return a;
+  }
+  function fmt(v) { return String(Math.round(v * 100) / 100); }
+  function save() { try { localStorage.setItem(LS, JSON.stringify(state)); } catch (e) {} }
+  function load() { try { var s = JSON.parse(localStorage.getItem(LS)); if (s && s.students && s.exams) return s; } catch (e) {} return null; }
+  function label(s) { return [s.no, s.name, s.cls].filter(Boolean).join(' - '); }
+
+  /* ---------- Excel reading ---------- */
+  function norm(h) {
+    return String(h == null ? '' : h).toLocaleLowerCase('tr').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ı/g, 'i').replace(/[^a-z0-9]/g, '');
+  }
+  function findHeader(rows) {
+    var best = { r: -1, map: {}, n: 0 };
+    for (var r = 0; r < Math.min(rows.length, 40); r++) {
+      var map = {}, n = 0;
+      rows[r].forEach(function (c, ci) {
+        var nc = norm(c);
+        if (!nc) return;
+        Object.keys(KEYS).forEach(function (k) { if (map[k] === undefined && KEYS[k].indexOf(nc) >= 0) { map[k] = ci; n++; } });
+      });
+      if (n > best.n) best = { r: r, map: map, n: n };
+    }
+    best.ok = best.map.name !== undefined && best.map.sinif !== undefined && best.map.pct !== undefined;
+    return best;
+  }
+  function parseWorkbook(wb) {
+    var students = [], skipped = 0, noPct = 0, found = {}, bestMiss = null;
+    wb.SheetNames.forEach(function (sn) {
+      var rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: '', raw: true });
+      var h = findHeader(rows);
+      if (!h.ok) { if (!bestMiss || h.n > bestMiss.n) bestMiss = h; return; }
+      Object.keys(h.map).forEach(function (k) { found[k] = true; });
+      var m = h.map;
+      for (var i = h.r + 1; i < rows.length; i++) {
+        var row = rows[i];
+        var name = String(row[m.name] == null ? '' : row[m.name]).trim();
+        if (!name) continue;
+        var sinifRaw = String(row[m.sinif] == null ? '' : row[m.sinif]).trim();
+        var gm = sinifRaw.match(/\d+/);
+        if (!gm) { skipped++; continue; }
+        var grade = +gm[0];
+        var sube = '';
+        if (m.sube !== undefined) {
+          var sr = String(row[m.sube] == null ? '' : row[m.sube]).trim().toLocaleUpperCase('tr');
+          var sm = sr.match(/^\d*\s*[-\/.]?\s*([A-ZÇĞİÖŞÜ]+)$/);
+          if (sm) sube = sm[1];
+        }
+        if (!sube) {
+          var m2 = sinifRaw.toLocaleUpperCase('tr').match(/\d+\s*[-\/. ]?\s*([A-ZÇĞİÖŞÜ])$/);
+          if (m2) sube = m2[1];
+        }
+        var pv = row[m.pct], pct;
+        if (typeof pv === 'number') pct = pv;
+        else { pct = parseFloat(String(pv).replace('%', '').replace(',', '.').trim()); }
+        if (isNaN(pct)) { pct = 0; noPct++; }
+        var no = m.no !== undefined && row[m.no] != null ? String(row[m.no]).trim() : '';
+        students.push({ id: 's' + students.length, no: no, name: name, grade: grade, sube: sube, cls: grade + (sube ? ' ' + sube : ''), pct: pct });
+      }
+    });
+    if (!students.length) {
+      var missing = COLS.filter(function (c) { return !bestMiss || bestMiss.map[c[0]] === undefined; }).map(function (c) { return c[1]; });
+      return { error: 'Could not find the column titles' + (missing.length ? ' (missing: ' + missing.join(', ') + ')' : '') + '. Make sure the title row has Okul Nu, Adı-Soyadı, Sınıf, Şube and Yüzde.' };
+    }
+    return { students: students, skipped: skipped, noPct: noPct, found: found };
+  }
+  function importFile(f, input) {
+    var st = $('#rosterStatus');
+    function finish(res) {
+      input.value = '';
+      if (res.error) { say(st, res.error, 'bad'); return; }
+      state.students = res.students; state.found = res.found; state.file = f.name; state.sample = false;
+      resetMixes(); save(); renderRoster(); render();
+      var msg = res.students.length + ' students loaded.';
+      if (res.skipped) msg += ' ' + res.skipped + ' row(s) skipped (no class).';
+      if (res.noPct) msg += ' ' + res.noPct + ' student(s) have no Yüzde and count as 0.';
+      say(st, msg + ' Earlier mixes were cleared.', res.noPct || res.skipped ? 'bad' : 'ok');
+    }
+    if (typeof XLSX === 'undefined') { say(st, 'The Excel reader did not load. Check your connection and reload the page.', 'bad'); input.value = ''; return; }
+    var isCsv = /\.csv$/i.test(f.name);
+    (isCsv ? f.text() : f.arrayBuffer()).then(function (data) {
+      var wb;
+      try { wb = XLSX.read(data, { type: isCsv ? 'string' : 'array' }); } catch (e) { return finish({ error: 'Could not read that file.' }); }
+      finish(parseWorkbook(wb));
+    }, function () { finish({ error: 'Could not read that file.' }); });
+  }
+
+  /* ---------- sample ---------- */
+  var FIRST = ['Ayşe', 'Mehmet', 'Zeynep', 'Ahmet', 'Elif', 'Mustafa', 'Defne', 'Emre', 'Selin', 'Can', 'Deniz', 'Kerem', 'Ece', 'Burak', 'Naz', 'Ozan', 'İpek', 'Arda', 'Melis', 'Barış', 'Yağmur', 'Kaan', 'Derya', 'Efe'];
+  var LAST = ['Yılmaz', 'Kaya', 'Demir', 'Çelik', 'Şahin', 'Aydın', 'Özdemir', 'Arslan', 'Doğan', 'Kılıç', 'Aslan', 'Çetin', 'Koç', 'Kurt', 'Özkan', 'Polat'];
+  function sampleStudents() {
+    var counts = [14, 12, 12, 10], out = [], seed = 7, used = {}, n = 0;
+    function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+    counts.forEach(function (c, gi) {
+      for (var i = 0; i < c; i++) {
+        var f, l, key, t = 0;
+        do { f = FIRST[(n * 5 + t) % FIRST.length]; l = LAST[(n * 7 + 3 + t * 3) % LAST.length]; key = f + ' ' + l; t++; } while (used[key]);
+        used[key] = 1;
+        var sube = 'ABC'[i % 3];
+        out.push({ id: 's' + n, no: String(1100 + n * 7), name: key, grade: gi + 5, sube: sube, cls: (gi + 5) + ' ' + sube, pct: Math.round((35 + rnd() * 62) * 10) / 10 });
+        n++;
+      }
+    });
+    return out;
+  }
+
+  /* ---------- mixing ---------- */
+  function studentMap() { var m = new Map(); state.students.forEach(function (s) { m.set(s.id, s); }); return m; }
+  function pk(a, b) { return a < b ? a + '|' + b : b + '|' + a; }
+  function pairsOf(groups, set) {
+    groups.forEach(function (g) { for (var i = 0; i < g.length; i++) for (var j = i + 1; j < g.length; j++) set.add(pk(g[i], g[j])); });
+    return set;
+  }
+  function countRepeats(groups, pairs) {
+    var c = 0;
+    groups.forEach(function (g) { for (var i = 0; i < g.length; i++) for (var j = i + 1; j < g.length; j++) if (pairs.has(pk(g[i], g[j]))) c++; });
+    return c;
+  }
+  /* Rank by Yüzde, then deal in rounds of k. Round 1 goes to the groups in a random order,
+     round 2 goes back in the reverse order, and so on: one from the top, one from the bottom. */
+  function dealOnce(k) {
+    var sorted = shuffle(state.students).sort(function (a, b) { return b.pct - a.pct; });
+    var groups = Array.from({ length: k }, function () { return []; });
+    var perm = null;
+    for (var r = 0, i = 0; i < sorted.length; r++, i += k) {
+      if (r % 2 === 0) perm = shuffle(Array.from({ length: k }, function (_, x) { return x; }));
+      var order = r % 2 === 0 ? perm : perm.slice().reverse();
+      sorted.slice(i, i + k).forEach(function (s, j) { groups[order[j]].push(s.id); });
+    }
+    return groups;
+  }
+  function seatOrder(ids, map) {
+    var b = new Map();
+    shuffle(ids).forEach(function (id) { var g = map.get(id).grade; if (!b.has(g)) b.set(g, []); b.get(g).push(id); });
+    var out = [], last = null;
+    while (out.length < ids.length) {
+      var best = null;
+      b.forEach(function (arr, g) {
+        if (!arr.length || g === last) return;
+        if (best === null || arr.length > b.get(best).length || (arr.length === b.get(best).length && Math.random() < 0.5)) best = g;
+      });
+      if (best === null) b.forEach(function (arr, g) { if (best === null && arr.length) best = g; });
+      out.push(b.get(best).pop());
+      last = best;
+    }
+    return out;
+  }
+  function otherPairs(exam) {
+    var set = new Set();
+    state.exams.forEach(function (e) { if (e !== exam && e.groups) pairsOf(e.groups, set); });
+    return set;
+  }
+  function mixExam(exam) {
+    var map = studentMap();
+    var pairs = state.avoid ? otherPairs(exam) : new Set();
+    var attempts = pairs.size ? 400 : 1, best = null, bestScore = Infinity;
+    for (var a = 0; a < attempts; a++) {
+      var g = dealOnce(state.k);
+      var sc = pairs.size ? countRepeats(g, pairs) : 0;
+      if (sc < bestScore) { best = g; bestScore = sc; if (sc === 0) break; }
+    }
+    exam.groups = best.map(function (g) { return seatOrder(g, map); });
+  }
+  function avgOf(g, map) { return g.length ? g.reduce(function (t, id) { return t + map.get(id).pct; }, 0) / g.length : 0; }
+
+  /* ---------- display helpers ---------- */
+  function gradeInfo() {
+    var gs = Array.from(new Set(state.students.map(function (s) { return s.grade; }))).sort(function (a, b) { return a - b; });
+    var m = new Map();
+    gs.forEach(function (g, i) { m.set(g, i % 8); });
+    return { gs: gs, m: m };
+  }
+  function chip(grade, gi) { return '<span class="gchip" style="--c:var(--g' + gi.m.get(grade) + ')">' + grade + '</span>'; }
+  function activeExam() { return state.exams.find(function (e) { return e.id === state.active; }) || null; }
+  function say(el, msg, kind) {
+    el.textContent = msg; el.className = 'status' + (kind ? ' ' + kind : '');
+    clearTimeout(el._t); el._t = setTimeout(function () { el.textContent = ''; el.className = 'status'; }, 9000);
+  }
+  function arm(btn, text, fn) {
+    if (btn.dataset.armed) { clearTimeout(+btn.dataset.armed); delete btn.dataset.armed; btn.textContent = btn.dataset.orig; fn(); return; }
+    btn.dataset.orig = btn.textContent; btn.textContent = text;
+    btn.dataset.armed = String(setTimeout(function () { btn.textContent = btn.dataset.orig; delete btn.dataset.armed; }, 3000));
+  }
+  function copyText(text) {
+    var st = $('#rosterStatus');
+    function fallback() {
+      $('#copybox').hidden = false;
+      var ta = $('#copytext'); ta.value = text; ta.focus(); ta.select();
+      say(st, 'Copy blocked here. The text is selected below.', 'bad');
+    }
+    try { navigator.clipboard.writeText(text).then(function () { say(st, 'Copied. Paste it into Excel or Sheets.', 'ok'); }, fallback); } catch (e) { fallback(); }
+  }
+
+  /* ---------- render ---------- */
+  function renderRoster() {
+    $('#cols').innerHTML = COLS.map(function (c) {
+      return '<span class="col' + (state.found && state.found[c[0]] ? ' on' : '') + '">' + c[1] + '</span>';
+    }).join('');
+    var n = state.students.length;
+    if (!n) { $('#rosterInfo').innerHTML = '<p class="muted" style="font-size:13px">No students yet. Upload your file to begin.</p>'; return; }
+    var gi = gradeInfo();
+    var pcts = state.students.map(function (s) { return s.pct; });
+    var classes = Array.from(new Set(state.students.map(function (s) { return s.cls; }))).sort(function (a, b) { return parseInt(a) - parseInt(b) || a.localeCompare(b, 'tr'); });
+    var ranked = state.students.slice().sort(function (a, b) { return b.pct - a.pct; });
+    $('#rosterInfo').innerHTML =
+      '<dl class="facts-list">' +
+      '<dt>File</dt><dd>' + (state.sample ? 'Sample data (not your students)' : esc(state.file || '')) + '</dd>' +
+      '<dt>Students</dt><dd>' + n + '</dd>' +
+      '<dt>Yüzde</dt><dd>' + fmt(Math.min.apply(null, pcts)) + ' to ' + fmt(Math.max.apply(null, pcts)) + '</dd>' +
+      '<dt>Classes</dt><dd>' + classes.map(esc).join(', ') + '</dd></dl>' +
+      '<div class="legend">' + gi.gs.map(function (g) {
+        return '<span class="legend-item">' + chip(g, gi) + '<span class="mono">×' + state.students.filter(function (s) { return s.grade === g; }).length + '</span></span>';
+      }).join('') + '</div>' +
+      '<details><summary>Show students, highest Yüzde first</summary><div class="scroll"><table><thead><tr><th>Okul Nu</th><th>Adı Soyadı</th><th>Sınıf Şube</th><th>Yüzde</th></tr></thead><tbody>' +
+      ranked.map(function (s) { return '<tr><td class="mono">' + esc(s.no) + '</td><td>' + esc(s.name) + '</td><td>' + esc(s.cls) + '</td><td class="mono">' + fmt(s.pct) + '</td></tr>'; }).join('') +
+      '</tbody></table></div></details>';
+  }
+
+  function render() {
+    var gi = gradeInfo();
+    var n = state.students.length;
+    var ks = $('#kSelect');
+    if (!ks.options.length) { for (var k = 2; k <= 10; k++) { var o = document.createElement('option'); o.value = k; o.textContent = k; ks.appendChild(o); } }
+    ks.value = state.k;
+
+    $('#tabs').innerHTML = state.exams.map(function (e) {
+      return '<button class="tab" role="tab" data-action="tab" data-id="' + e.id + '" aria-selected="' + (state.active === e.id) + '">' +
+        '<span class="dot' + (e.groups ? ' on' : '') + '" aria-hidden="true"></span>' + esc(e.name) + '</button>';
+    }).join('') +
+      '<button data-action="addexam">+ Add exam</button>' +
+      '<button class="tab matrix-tab" role="tab" data-action="tab" data-id="matrix" aria-selected="' + (state.active === 'matrix') + '">All exams</button>';
+
+    var view = $('#view');
+    if (state.active === 'matrix') { view.innerHTML = renderMatrix(); return; }
+    var exam = activeExam();
+    if (!exam) { state.active = state.exams[0] ? state.exams[0].id : 'matrix'; return render(); }
+
+    var html = '<div class="toolbar">' +
+      '<input type="text" id="examName" value="' + esc(exam.name) + '" aria-label="Exam name" maxlength="40">' +
+      '<button class="primary" data-action="mix">' + (exam.groups ? 'Mix again' : 'Mix groups') + '</button>' +
+      (exam.groups ? '<button data-action="copy">Copy table</button>' : '') +
+      (exam.groups && dl ? '<button data-action="xlsx">Download Excel</button>' : '') +
+      '<span class="spacer"></span>' +
+      '<button class="danger" data-action="delexam">Delete exam</button></div>' +
+      '<label class="check"><input type="checkbox" id="avoid"' + (state.avoid ? ' checked' : '') + '>' +
+      '<span>Keep students apart who already shared a group in another exam</span></label>';
+
+    if (!n) {
+      html += '<div class="empty"><h3>Upload the score sheet first</h3><p class="muted">Use the upload box on the left.</p></div>';
+    } else if (!exam.groups) {
+      html += '<div class="empty"><h3>' + esc(exam.name) + ' has no groups yet</h3>' +
+        '<p class="muted">' + n + ' students will be ranked by Yüzde and dealt into ' + state.k + ' groups.</p>' +
+        '<button class="primary" data-action="mix">Mix groups</button></div>';
+    } else {
+      var map = studentMap();
+      var sizes = exam.groups.map(function (g) { return g.length; });
+      var mn = Math.min.apply(null, sizes), mx = Math.max.apply(null, sizes);
+      var avgs = exam.groups.map(function (g) { return avgOf(g, map); });
+      var rep = countRepeats(exam.groups, otherPairs(exam));
+      var others = state.exams.filter(function (e) { return e !== exam && e.groups; }).length;
+      html += '<div class="summary"><div class="facts"><strong>' + n + ' students</strong> in ' + state.k + ' groups of ' + (mn === mx ? mn : mn + '–' + mx) + '</div>' +
+        '<span class="badge plain">Averages ' + fmt(Math.min.apply(null, avgs)) + ' to ' + fmt(Math.max.apply(null, avgs)) + '</span>' +
+        (others ? '<span class="badge ' + (rep ? 'warn' : 'good') + '">' + (rep ? rep + ' repeat pair' + (rep > 1 ? 's' : '') + ' vs other exams' : 'No repeat pairs vs other exams') + '</span>' : '') + '</div>';
+      html += '<p class="muted" style="font-size:13px">Seats alternate grade levels where possible. Click one student, then another, to swap them.</p>';
+      html += '<div class="groups">' + exam.groups.map(function (g, gx) {
+        var counts = new Map();
+        g.forEach(function (id) { var gr = map.get(id).grade; counts.set(gr, (counts.get(gr) || 0) + 1); });
+        var bar = gi.gs.filter(function (gr) { return counts.has(gr); }).map(function (gr) {
+          return '<i title="Grade ' + gr + ': ' + counts.get(gr) + '" style="--c:var(--g' + gi.m.get(gr) + ');flex:' + counts.get(gr) + '"></i>';
+        }).join('');
+        return '<article class="group"><div class="group-head"><div class="group-title"><h3>Group ' + LETTERS[gx] + '</h3><span>' + g.length + ' students · avg ' + fmt(avgs[gx]) + '</span></div>' +
+          '<div class="bar" aria-hidden="true">' + bar + '</div></div><ul class="seats">' +
+          g.map(function (id, i) {
+            var s = map.get(id);
+            var pressed = sel && sel.e === exam.id && sel.g === gx && sel.i === i;
+            return '<li><button class="seat" data-action="seat" data-g="' + gx + '" data-i="' + i + '" aria-pressed="' + !!pressed + '">' +
+              '<span class="no">' + (i + 1) + '</span><span class="nm">' + esc(label(s)) + '</span><span class="pct">' + fmt(s.pct) + '</span></button></li>';
+          }).join('') + '</ul></article>';
+      }).join('') + '</div>';
+    }
+    view.innerHTML = html;
+  }
+
+  function matrixWhere() {
+    return state.exams.map(function (e) {
+      var m = new Map();
+      if (e.groups) e.groups.forEach(function (g, gx) { g.forEach(function (id) { m.set(id, LETTERS[gx]); }); });
+      return m;
+    });
+  }
+  function sortedStudents() {
+    return state.students.slice().sort(function (a, b) { return a.grade - b.grade || a.cls.localeCompare(b.cls, 'tr') || a.name.localeCompare(b.name, 'tr'); });
+  }
+  function renderMatrix() {
+    if (!state.students.length) return '<div class="empty"><h3>No students yet</h3></div>';
+    var where = matrixWhere();
+    var any = state.exams.some(function (e) { return e.groups; });
+    return '<div class="toolbar"><h2>Group per exam</h2><span class="spacer"></span>' +
+      (any ? '<button data-action="copymatrix">Copy table</button>' : '') +
+      (any && dl ? '<button data-action="xlsx">Download Excel</button>' : '') + '</div>' +
+      '<div class="table-wrap"><table><thead><tr><th>Student</th><th>Yüzde</th>' +
+      state.exams.map(function (e) { return '<th>' + esc(e.name) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      sortedStudents().map(function (s) {
+        return '<tr><td>' + esc(label(s)) + '</td><td class="mono">' + fmt(s.pct) + '</td>' +
+          state.exams.map(function (e, i) {
+            var l = where[i].get(s.id);
+            return l ? '<td><span class="cell">' + l + '</span></td>' : '<td class="na">–</td>';
+          }).join('') + '</tr>';
+      }).join('') + '</tbody></table></div>';
+  }
+
+  /* ---------- copy formats ---------- */
+  function tsvExam(exam) {
+    var map = studentMap();
+    var size = Math.max.apply(null, exam.groups.map(function (g) { return g.length; }));
+    var rows = [exam.groups.map(function (_, gx) { return 'Group ' + LETTERS[gx]; }).join('\t')];
+    for (var i = 0; i < size; i++) {
+      rows.push(exam.groups.map(function (g) { return g[i] ? label(map.get(g[i])) : ''; }).join('\t'));
+    }
+    rows.push(exam.groups.map(function (g) { return 'Average ' + fmt(avgOf(g, map)); }).join('\t'));
+    return rows.join('\n');
+  }
+  function tsvMatrix() {
+    var where = matrixWhere();
+    var rows = [['Okul Nu', 'Adı Soyadı', 'Sınıf Şube', 'Yüzde'].concat(state.exams.map(function (e) { return e.name; })).join('\t')];
+    sortedStudents().forEach(function (s) {
+      rows.push([s.no, s.name, s.cls, fmt(s.pct)].concat(where.map(function (m) { return m.get(s.id) ? 'Group ' + m.get(s.id) : ''; })).join('\t'));
+    });
+    return rows.join('\n');
+  }
+
+
+  /* ---------- Excel download ---------- */
+  var NAVY = '1F2A44', GRID = 'B8C0CE';
+  var GROUP_COLORS = ['2F5597', 'C55A11', '548235', '7030A0', '9A7B00', '1F7A8C', 'A6324E', '4B5563', '2A6F4F', '7A4B2A'];
+  function argb(hex) { return { argb: 'FF' + hex }; }
+  function fillOf(hex) { return { type: 'pattern', pattern: 'solid', fgColor: argb(hex) }; }
+  function boxBorders(ws, r1, c1, r2, c2) {
+    function side(edge) { return { style: edge ? 'medium' : 'thin', color: argb(edge ? NAVY : GRID) }; }
+    for (var r = r1; r <= r2; r++) for (var c = c1; c <= c2; c++) {
+      ws.getCell(r, c).border = { top: side(r === r1), left: side(c === c1), bottom: side(r === r2), right: side(c === c2) };
+    }
+  }
+  function sheetName(name, used) {
+    var base = String(name).replace(/[\[\]:*?\/\\]/g, ' ').trim().slice(0, 28) || 'Exam', n = base, i = 2;
+    while (used[n.toLowerCase()]) { n = base + ' ' + i++; }
+    used[n.toLowerCase()] = 1;
+    return n;
+  }
+  function buildWorkbook(mixed) {
+    var wb = new ExcelJS.Workbook();
+    wb.creator = 'Exam Group Mixer';
+    var map = studentMap(), used = {};
+    var today = new Date().toISOString().slice(0, 10);
+    var center = { vertical: 'middle', horizontal: 'center' };
+    var left = { vertical: 'middle', horizontal: 'left', indent: 1 };
+
+    mixed.forEach(function (exam) {
+      var ws = wb.addWorksheet(sheetName(exam.name, used), {
+        views: [{ showGridLines: false }],
+        pageSetup: { orientation: 'landscape', paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0, horizontalCentered: true,
+          margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.3, footer: 0.3 } }
+      });
+      var k = exam.groups.length, per = Math.min(3, k), lastCol = per * 5 - 1;
+      var widths = [5, 10, 30, 12, 3];
+      for (var c = 1; c <= lastCol; c++) ws.getColumn(c).width = widths[(c - 1) % 5];
+
+      ws.mergeCells(1, 1, 1, lastCol);
+      var t = ws.getCell(1, 1);
+      t.value = exam.name; t.font = { name: 'Calibri', size: 20, bold: true, color: argb(NAVY) }; t.alignment = { vertical: 'middle', horizontal: 'left' };
+      ws.getRow(1).height = 32;
+      ws.mergeCells(2, 1, 2, lastCol);
+      var sub = ws.getCell(2, 1);
+      sub.value = state.students.length + ' students  ·  ' + k + ' groups  ·  ' + today;
+      sub.font = { name: 'Calibri', size: 11, color: argb('5A687C') }; sub.alignment = { vertical: 'middle', horizontal: 'left' };
+
+      var maxSize = Math.max.apply(null, exam.groups.map(function (g) { return g.length; }));
+      var blockRows = 2 + maxSize;
+      exam.groups.forEach(function (g, gx) {
+        var r0 = 4 + Math.floor(gx / per) * (blockRows + 1), c0 = 1 + (gx % per) * 5;
+        ws.mergeCells(r0, c0, r0, c0 + 3);
+        var h = ws.getCell(r0, c0);
+        h.value = 'Group ' + LETTERS[gx] + '   ·   ' + g.length + ' students';
+        h.fill = fillOf(GROUP_COLORS[gx % GROUP_COLORS.length]);
+        h.font = { name: 'Calibri', size: 13, bold: true, color: argb('FFFFFF') };
+        h.alignment = center;
+        for (var cc = 1; cc < 4; cc++) ws.getCell(r0, c0 + cc).fill = fillOf(GROUP_COLORS[gx % GROUP_COLORS.length]);
+        ['#', 'Okul Nu', 'Adı Soyadı', 'Sınıf Şube'].forEach(function (txt, i) {
+          var cell = ws.getCell(r0 + 1, c0 + i);
+          cell.value = txt; cell.fill = fillOf('E6EAF2');
+          cell.font = { name: 'Calibri', size: 11, bold: true, color: argb(NAVY) };
+          cell.alignment = i === 2 ? left : center;
+        });
+        for (var i = 0; i < maxSize; i++) {
+          var s = g[i] ? map.get(g[i]) : null, r = r0 + 2 + i;
+          var vals = [s ? i + 1 : '', s ? s.no : '', s ? s.name : '', s ? s.cls : ''];
+          for (var j = 0; j < 4; j++) {
+            var cell = ws.getCell(r, c0 + j);
+            cell.value = vals[j];
+            cell.font = { name: 'Calibri', size: 11, color: argb(j === 0 ? '7A8699' : '142033') };
+            cell.alignment = j === 2 ? left : center;
+            if (i % 2 === 1) cell.fill = fillOf('F5F7FB');
+          }
+        }
+        boxBorders(ws, r0, c0, r0 + 1 + maxSize, c0 + 3);
+      });
+      var totalRows = 3 + Math.ceil(k / per) * (blockRows + 1);
+      for (var rr = 3; rr <= totalRows; rr++) ws.getRow(rr).height = 21;
+    });
+
+    /* overview sheet: one row per student, one column per exam */
+    var ov = wb.addWorksheet(sheetName('All exams', used), { views: [{ state: 'frozen', ySplit: 1, showGridLines: false }],
+      pageSetup: { orientation: 'portrait', paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
+    var heads = ['Okul Nu', 'Adı Soyadı', 'Sınıf Şube', 'Yüzde'].concat(mixed.map(function (e) { return e.name; }));
+    var ow = [11, 30, 12, 10];
+    heads.forEach(function (txt, i) {
+      var cell = ov.getCell(1, i + 1);
+      cell.value = txt; cell.fill = fillOf(NAVY);
+      cell.font = { name: 'Calibri', size: 11, bold: true, color: argb('FFFFFF') };
+      cell.alignment = i === 1 ? left : center;
+      ov.getColumn(i + 1).width = ow[i] || 14;
+    });
+    ov.getRow(1).height = 24;
+    var where = mixed.map(function (e) { var m = new Map(); e.groups.forEach(function (g, gx) { g.forEach(function (id) { m.set(id, 'Group ' + LETTERS[gx]); }); }); return m; });
+    sortedStudents().forEach(function (s, ri) {
+      var r = ri + 2;
+      var vals = [s.no, s.name, s.cls, Math.round(s.pct * 100) / 100].concat(where.map(function (m) { return m.get(s.id) || ''; }));
+      vals.forEach(function (v, i) {
+        var cell = ov.getCell(r, i + 1);
+        cell.value = v;
+        cell.font = { name: 'Calibri', size: 11, color: argb('142033') };
+        cell.alignment = i === 1 ? left : center;
+        if (i === 3) cell.numFmt = '0.00';
+        if (ri % 2 === 1) cell.fill = fillOf('F5F7FB');
+      });
+      ov.getRow(r).height = 20;
+    });
+    boxBorders(ov, 1, 1, state.students.length + 1, heads.length);
+    ov.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: heads.length } };
+    return wb;
+  }
+  async function downloadExcel() {
+    var st = $('#rosterStatus');
+    var mixed = state.exams.filter(function (e) { return e.groups; });
+    if (!mixed.length) { say(st, 'Mix at least one exam first.', 'bad'); return; }
+    if (typeof ExcelJS === 'undefined') { say(st, 'The Excel writer did not load. Check your connection and reload the page.', 'bad'); return; }
+    if (!dl) { say(st, 'Downloads are not available in this view.', 'bad'); return; }
+    try {
+      var buf = await buildWorkbook(mixed).xlsx.writeBuffer();
+      var blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      await dl.save({ filename: 'Exam-Groups-' + new Date().toISOString().slice(0, 10) + '.xlsx', data: blob });
+      say(st, 'Excel file saved.', 'ok');
+    } catch (e) {
+      if (e && e.code === 'declined') return;
+      say(st, 'Could not create the Excel file' + (e && e.message ? ': ' + e.message : '') + '.', 'bad');
+    }
+  }
+
+  /* ---------- actions ---------- */
+  function resetMixes() { state.exams.forEach(function (e) { e.groups = null; }); sel = null; }
+
+  document.addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-action]');
+    if (!b) return;
+    var a = b.dataset.action, exam = activeExam();
+    if (a === 'sample') {
+      arm(b, 'Replace students? Click again', function () {
+        state.students = sampleStudents(); state.found = null; state.file = ''; state.sample = true;
+        resetMixes(); save(); renderRoster(); render();
+        say($('#rosterStatus'), 'Sample students loaded.', 'ok');
+      });
+    }
+    else if (a === 'tab') { state.active = b.dataset.id; sel = null; save(); render(); }
+    else if (a === 'addexam') {
+      var e = { id: uid(), name: 'Exam ' + (state.exams.length + 1), groups: null };
+      state.exams.push(e); state.active = e.id; save(); render();
+    }
+    else if (a === 'mix' && exam) { if (!state.students.length) return; sel = null; mixExam(exam); save(); render(); }
+    else if (a === 'delexam' && exam) {
+      arm(b, 'Click again to delete', function () {
+        state.exams = state.exams.filter(function (x) { return x !== exam; });
+        if (!state.exams.length) state.exams.push({ id: uid(), name: 'Exam 1', groups: null });
+        state.active = state.exams[0].id; sel = null; save(); render();
+      });
+    }
+    else if (a === 'copy' && exam) copyText(tsvExam(exam));
+    else if (a === 'copymatrix') copyText(tsvMatrix());
+    else if (a === 'xlsx') downloadExcel();
+    else if (a === 'closecopy') $('#copybox').hidden = true;
+    else if (a === 'seat' && exam) {
+      var g = +b.dataset.g, i = +b.dataset.i;
+      if (!sel) sel = { e: exam.id, g: g, i: i };
+      else if (sel.g === g && sel.i === i) sel = null;
+      else {
+        var t = exam.groups[sel.g][sel.i];
+        exam.groups[sel.g][sel.i] = exam.groups[g][i];
+        exam.groups[g][i] = t;
+        sel = null; save();
+      }
+      render();
+    }
+  });
+  document.addEventListener('change', function (ev) {
+    var t = ev.target;
+    if (t.id === 'kSelect') {
+      var k = +t.value;
+      if (k !== state.k) { state.k = k; resetMixes(); save(); render(); say($('#rosterStatus'), 'Group count changed to ' + k + '. Earlier mixes were cleared.', 'ok'); }
+    } else if (t.id === 'avoid') { state.avoid = t.checked; save(); }
+    else if (t.id === 'fileIn' && t.files && t.files[0]) importFile(t.files[0], t);
+  });
+  document.addEventListener('input', function (ev) {
+    if (ev.target.id === 'examName') {
+      var ex = activeExam();
+      if (ex) {
+        ex.name = ev.target.value || 'Untitled exam';
+        save();
+        var tab = document.querySelector('.tab[data-id="' + ex.id + '"]');
+        if (tab) tab.lastChild.textContent = ex.name;
+      }
+    }
+  });
+  var drop = $('#drop');
+  ['dragenter', 'dragover'].forEach(function (n) { drop.addEventListener(n, function (e) { e.preventDefault(); drop.classList.add('over'); }); });
+  ['dragleave', 'drop'].forEach(function (n) { drop.addEventListener(n, function (e) { e.preventDefault(); drop.classList.remove('over'); }); });
+  drop.addEventListener('drop', function (e) { var f = e.dataTransfer && e.dataTransfer.files[0]; if (f) importFile(f, $('#fileIn')); });
+
+  /* ---------- boot ---------- */
+  state = load();
+  if (!state) {
+    state = { students: sampleStudents(), k: 6, avoid: true, sample: true, found: null, file: '', active: null, exams: [
+      { id: uid(), name: 'Exam 1', groups: null },
+      { id: uid(), name: 'Exam 2', groups: null },
+      { id: uid(), name: 'Exam 3', groups: null }
+    ] };
+    mixExam(state.exams[0]); mixExam(state.exams[1]);
+    state.active = state.exams[0].id;
+  }
+  if (state.sample) $('#rosterStatus').textContent = 'Sample students are loaded. Upload your file to replace them.';
+  save();
+  renderRoster();
+  render();
+  /* Standalone build: save the Excel file with a normal browser download. */
+  dl = { save: function (o) {
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(o.data); a.download = o.filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    return Promise.resolve({ status: 'saved' });
+  } };
+  render();
+})();
+</script>
+</body>
+</html>
