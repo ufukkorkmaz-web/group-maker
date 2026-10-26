@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="tr">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -7,7 +7,6 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>
 /* Layout: upload panel on the left, exam tabs + group cards on the right; stacks on phones. */
-/* Designed, created and programmed by Ufuk Korkmaz in 2026. */
 :root {
   --bg: #F2F4F8;
   --surface: #FFFFFF;
@@ -193,27 +192,27 @@ td.na { color: var(--muted); }
   <header>
     <div>
       <h1>Sınav Grup Karma Sistemi</h1>
-      <p class="lede">Sınav sonuçlarına göre öğrencileri her sınavda farklı gruplarda olmak üzere listeleyerek çalışır. Sistemi başlatmak için "excel" dosyası yükleyin.</p>
+      <p class="lede">Bir puan tablosunu yükleyin. Öğrenciler yüzde değerine göre sıralanır ve hem üstten hem alttan dağıtılır.</p>
     </div>
-    <label class="k-control" for="kSelect">Groups per exam
-      <select id="kSelect" aria-label="Number of groups"></select>
+    <label class="k-control" for="kSelect">Sınav başına grup sayısı
+      <select id="kSelect" aria-label="Grup sayısı"></select>
     </label>
   </header>
 
   <div class="layout">
     <section class="panel" aria-labelledby="rosterTitle">
-      <h2 id="rosterTitle">Score sheet</h2>
+      <h2 id="rosterTitle">Puan tablosu</h2>
       <label class="drop" id="drop" for="fileIn">
-        <strong>Upload Excel file</strong>
-        <span class="muted" style="font-size:13px">Seçmek için tıklayın ya da dosyayı sürükleyerek seçili alanın içerisine bırakın. (.xlsx, .xls, .csv)</span>
+        <strong>Excel dosyası yükle</strong>
+        <span class="muted" style="font-size:13px">Seçmek için tıklayın veya dosyayı buraya sürükleyin (.xlsx, .xls, .csv)</span>
         <input type="file" id="fileIn" accept=".xlsx,.xlsm,.xls,.csv">
       </label>
-      <div class="cols" id="cols" aria-label="Columns the page looks for"></div>
+      <div class="cols" id="cols" aria-label="Sayfanın aradığı sütunlar"></div>
       <p class="status" id="rosterStatus" role="status" aria-live="polite"></p>
       <div id="rosterInfo" style="display:flex;flex-direction:column;gap:12px"></div>
     </section>
 
-    <section class="main" aria-label="Exams">
+    <section class="main" aria-label="Sınavlar">
       <div class="tabs" id="tabs" role="tablist"></div>
       <div id="view" style="display:flex;flex-direction:column;gap:14px"></div>
     </section>
@@ -223,7 +222,7 @@ td.na { color: var(--muted); }
 
 <script>
 (function () {
-  var LS = 'exam-group-mixer-v3';
+  var LS = 'exam-group-mixer-v4';
   var LETTERS = 'ABCDEFGHIJ';
   var COLS = [['no', 'Okul Nu'], ['name', 'Adı-Soyadı'], ['sinif', 'Sınıf'], ['sube', 'Şube'], ['pct', 'Yüzde']];
   var KEYS = {
@@ -302,7 +301,7 @@ td.na { color: var(--muted); }
     });
     if (!students.length) {
       var missing = COLS.filter(function (c) { return !bestMiss || bestMiss.map[c[0]] === undefined; }).map(function (c) { return c[1]; });
-      return { error: 'Could not find the column titles' + (missing.length ? ' (missing: ' + missing.join(', ') + ')' : '') + '. Make sure the title row has Okul Nu, Adı-Soyadı, Sınıf, Şube and Yüzde.' };
+      return { error: 'Sütun başlıkları bulunamadı' + (missing.length ? ' (eksik: ' + missing.join(', ') + ')' : '') + '. Başlık satırında Okul Nu, Adı-Soyadı, Sınıf, Şube ve Yüzde sütunlarının olduğundan emin olun.' };
     }
     return { students: students, skipped: skipped, noPct: noPct, found: found };
   }
@@ -313,18 +312,18 @@ td.na { color: var(--muted); }
       if (res.error) { say(st, res.error, 'bad'); return; }
       state.students = res.students; state.found = res.found; state.file = f.name; state.sample = false;
       resetMixes(); save(); renderRoster(); render();
-      var msg = res.students.length + ' students loaded.';
-      if (res.skipped) msg += ' ' + res.skipped + ' row(s) skipped (no class).';
-      if (res.noPct) msg += ' ' + res.noPct + ' student(s) have no Yüzde and count as 0.';
-      say(st, msg + ' Earlier mixes were cleared.', res.noPct || res.skipped ? 'bad' : 'ok');
+      var msg = res.students.length + ' öğrenci yüklendi.';
+      if (res.skipped) msg += ' ' + res.skipped + ' satır atlandı (sınıf bilgisi yok).';
+      if (res.noPct) msg += ' ' + res.noPct + ' öğrencinin Yüzde değeri yok, 0 sayıldı.';
+      say(st, msg + ' Önceki gruplar silindi.', res.noPct || res.skipped ? 'bad' : 'ok');
     }
-    if (typeof XLSX === 'undefined') { say(st, 'The Excel reader did not load. Check your connection and reload the page.', 'bad'); input.value = ''; return; }
+    if (typeof XLSX === 'undefined') { say(st, 'Excel okuyucu yüklenemedi. Bağlantınızı kontrol edip sayfayı yenileyin.', 'bad'); input.value = ''; return; }
     var isCsv = /\.csv$/i.test(f.name);
     (isCsv ? f.text() : f.arrayBuffer()).then(function (data) {
       var wb;
-      try { wb = XLSX.read(data, { type: isCsv ? 'string' : 'array' }); } catch (e) { return finish({ error: 'Could not read that file.' }); }
+      try { wb = XLSX.read(data, { type: isCsv ? 'string' : 'array' }); } catch (e) { return finish({ error: 'Bu dosya okunamadı.' }); }
       finish(parseWorkbook(wb));
-    }, function () { finish({ error: 'Could not read that file.' }); });
+    }, function () { finish({ error: 'Bu dosya okunamadı.' }); });
   }
 
   /* ---------- mixing ---------- */
@@ -406,8 +405,8 @@ td.na { color: var(--muted); }
   }
   function copyText(text) {
     var st = $('#rosterStatus');
-    function fallback() { say(st, 'Copying is blocked in this browser. Use Download Excel instead.', 'bad'); }
-    try { navigator.clipboard.writeText(text).then(function () { say(st, 'Copied. Paste it into Excel or Sheets.', 'ok'); }, fallback); } catch (e) { fallback(); }
+    function fallback() { say(st, 'Bu tarayıcıda kopyalama engellendi. Bunun yerine Excel indir düğmesini kullanın.', 'bad'); }
+    try { navigator.clipboard.writeText(text).then(function () { say(st, 'Kopyalandı. Excel veya Sheets içine yapıştırabilirsiniz.', 'ok'); }, fallback); } catch (e) { fallback(); }
   }
 
   /* ---------- render ---------- */
@@ -416,21 +415,21 @@ td.na { color: var(--muted); }
       return '<span class="col' + (state.found && state.found[c[0]] ? ' on' : '') + '">' + c[1] + '</span>';
     }).join('');
     var n = state.students.length;
-    if (!n) { $('#rosterInfo').innerHTML = '<p class="muted" style="font-size:13px">No students yet. Upload your file to begin.</p>'; return; }
+    if (!n) { $('#rosterInfo').innerHTML = '<p class="muted" style="font-size:13px">Henüz öğrenci yok. Başlamak için dosyanızı yükleyin.</p>'; return; }
     var gi = gradeInfo();
     var pcts = state.students.map(function (s) { return s.pct; });
     var classes = Array.from(new Set(state.students.map(function (s) { return s.cls; }))).sort(function (a, b) { return parseInt(a) - parseInt(b) || a.localeCompare(b, 'tr'); });
     var ranked = state.students.slice().sort(function (a, b) { return b.pct - a.pct; });
     $('#rosterInfo').innerHTML =
       '<dl class="facts-list">' +
-      '<dt>File</dt><dd>' + esc(state.file || '') + '</dd>' +
-      '<dt>Students</dt><dd>' + n + '</dd>' +
-      '<dt>Yüzde</dt><dd>' + fmt(Math.min.apply(null, pcts)) + ' to ' + fmt(Math.max.apply(null, pcts)) + '</dd>' +
-      '<dt>Classes</dt><dd>' + classes.map(esc).join(', ') + '</dd></dl>' +
+      '<dt>Dosya</dt><dd>' + esc(state.file || '') + '</dd>' +
+      '<dt>Öğrenci</dt><dd>' + n + '</dd>' +
+      '<dt>Yüzde</dt><dd>' + fmt(Math.min.apply(null, pcts)) + ' – ' + fmt(Math.max.apply(null, pcts)) + '</dd>' +
+      '<dt>Sınıflar</dt><dd>' + classes.map(esc).join(', ') + '</dd></dl>' +
       '<div class="legend">' + gi.gs.map(function (g) {
         return '<span class="legend-item">' + chip(g, gi) + '<span class="mono">×' + state.students.filter(function (s) { return s.grade === g; }).length + '</span></span>';
       }).join('') + '</div>' +
-      '<details><summary>Show students, highest Yüzde first</summary><div class="scroll"><table><thead><tr><th>Okul Nu</th><th>Adı Soyadı</th><th>Sınıf Şube</th><th>Yüzde</th></tr></thead><tbody>' +
+      '<details><summary>Öğrencileri göster (en yüksek Yüzde en üstte)</summary><div class="scroll"><table><thead><tr><th>Okul Nu</th><th>Adı Soyadı</th><th>Sınıf Şube</th><th>Yüzde</th></tr></thead><tbody>' +
       ranked.map(function (s) { return '<tr><td class="mono">' + esc(s.no) + '</td><td>' + esc(s.name) + '</td><td>' + esc(s.cls) + '</td><td class="mono">' + fmt(s.pct) + '</td></tr>'; }).join('') +
       '</tbody></table></div></details>';
   }
@@ -446,8 +445,8 @@ td.na { color: var(--muted); }
       return '<button class="tab" role="tab" data-action="tab" data-id="' + e.id + '" aria-selected="' + (state.active === e.id) + '">' +
         '<span class="dot' + (e.groups ? ' on' : '') + '" aria-hidden="true"></span>' + esc(e.name) + '</button>';
     }).join('') +
-      '<button data-action="addexam">+ Add exam</button>' +
-      '<button class="tab matrix-tab" role="tab" data-action="tab" data-id="matrix" aria-selected="' + (state.active === 'matrix') + '">All exams</button>';
+      '<button data-action="addexam">+ Sınav ekle</button>' +
+      '<button class="tab matrix-tab" role="tab" data-action="tab" data-id="matrix" aria-selected="' + (state.active === 'matrix') + '">Tüm sınavlar</button>';
 
     var view = $('#view');
     if (state.active === 'matrix') { view.innerHTML = renderMatrix(); return; }
@@ -455,21 +454,21 @@ td.na { color: var(--muted); }
     if (!exam) { state.active = state.exams[0] ? state.exams[0].id : 'matrix'; return render(); }
 
     var html = '<div class="toolbar">' +
-      '<input type="text" id="examName" value="' + esc(exam.name) + '" aria-label="Exam name" maxlength="40">' +
-      '<button class="primary" data-action="mix">' + (exam.groups ? 'Mix again' : 'Mix groups') + '</button>' +
-      (exam.groups ? '<button data-action="copy">Copy table</button>' : '') +
-      (exam.groups && dl ? '<button data-action="xlsx">Download Excel</button>' : '') +
+      '<input type="text" id="examName" value="' + esc(exam.name) + '" aria-label="Sınav adı" maxlength="40">' +
+      '<button class="primary" data-action="mix">' + (exam.groups ? 'Yeniden karıştır' : 'Grupları oluştur') + '</button>' +
+      (exam.groups ? '<button data-action="copy">Tabloyu kopyala</button>' : '') +
+      (exam.groups && dl ? '<button data-action="xlsx">Excel indir</button>' : '') +
       '<span class="spacer"></span>' +
-      '<button class="danger" data-action="delexam">Delete exam</button></div>' +
+      '<button class="danger" data-action="delexam">Sınavı sil</button></div>' +
       '<label class="check"><input type="checkbox" id="avoid"' + (state.avoid ? ' checked' : '') + '>' +
-      '<span>Keep students apart who already shared a group in another exam</span></label>';
+      '<span>Başka bir sınavda aynı grupta olan öğrencileri ayır</span></label>';
 
     if (!n) {
-      html += '<div class="empty"><h3>Upload the score sheet first</h3><p class="muted">Use the upload box on the left.</p></div>';
+      html += '<div class="empty"><h3>Önce puan tablosunu yükleyin</h3><p class="muted">Yükleme kutusunu kullanın.</p></div>';
     } else if (!exam.groups) {
-      html += '<div class="empty"><h3>' + esc(exam.name) + ' has no groups yet</h3>' +
-        '<p class="muted">' + n + ' students will be ranked by Yüzde and dealt into ' + state.k + ' groups.</p>' +
-        '<button class="primary" data-action="mix">Mix groups</button></div>';
+      html += '<div class="empty"><h3>' + esc(exam.name) + ' için henüz grup yok</h3>' +
+        '<p class="muted">' + n + ' öğrenci Yüzde değerine göre sıralanıp ' + state.k + ' gruba dağıtılacak.</p>' +
+        '<button class="primary" data-action="mix">Grupları oluştur</button></div>';
     } else {
       var map = studentMap();
       var sizes = exam.groups.map(function (g) { return g.length; });
@@ -477,17 +476,17 @@ td.na { color: var(--muted); }
       var avgs = exam.groups.map(function (g) { return avgOf(g, map); });
       var rep = countRepeats(exam.groups, otherPairs(exam));
       var others = state.exams.filter(function (e) { return e !== exam && e.groups; }).length;
-      html += '<div class="summary"><div class="facts"><strong>' + n + ' students</strong> in ' + state.k + ' groups of ' + (mn === mx ? mn : mn + '–' + mx) + '</div>' +
-        '<span class="badge plain">Averages ' + fmt(Math.min.apply(null, avgs)) + ' to ' + fmt(Math.max.apply(null, avgs)) + '</span>' +
-        (others ? '<span class="badge ' + (rep ? 'warn' : 'good') + '">' + (rep ? rep + ' repeat pair' + (rep > 1 ? 's' : '') + ' vs other exams' : 'No repeat pairs vs other exams') + '</span>' : '') + '</div>';
-      html += '<p class="muted" style="font-size:13px">Seats alternate grade levels where possible. Click one student, then another, to swap them.</p>';
+      html += '<div class="summary"><div class="facts"><strong>' + n + ' öğrenci</strong>, ' + state.k + ' grup, her grupta ' + (mn === mx ? mn : mn + '–' + mx) + ' kişi</div>' +
+        '<span class="badge plain">Ortalamalar ' + fmt(Math.min.apply(null, avgs)) + ' – ' + fmt(Math.max.apply(null, avgs)) + '</span>' +
+        (others ? '<span class="badge ' + (rep ? 'warn' : 'good') + '">' + (rep ? rep + ' çift diğer sınavlarla tekrar ediyor' : 'Diğer sınavlarla tekrar eden çift yok') + '</span>' : '') + '</div>';
+      html += '<p class="muted" style="font-size:13px">Oturma düzeni mümkün olduğunca farklı sınıf seviyelerini dönüşümlü dizer. Yer değiştirmek için bir öğrenciye, sonra diğerine tıklayın.</p>';
       html += '<div class="groups">' + exam.groups.map(function (g, gx) {
         var counts = new Map();
         g.forEach(function (id) { var gr = map.get(id).grade; counts.set(gr, (counts.get(gr) || 0) + 1); });
         var bar = gi.gs.filter(function (gr) { return counts.has(gr); }).map(function (gr) {
-          return '<i title="Grade ' + gr + ': ' + counts.get(gr) + '" style="--c:var(--g' + gi.m.get(gr) + ');flex:' + counts.get(gr) + '"></i>';
+          return '<i title="Sınıf seviyesi ' + gr + ': ' + counts.get(gr) + '" style="--c:var(--g' + gi.m.get(gr) + ');flex:' + counts.get(gr) + '"></i>';
         }).join('');
-        return '<article class="group"><div class="group-head"><div class="group-title"><h3>Group ' + LETTERS[gx] + '</h3><span>' + g.length + ' students · avg ' + fmt(avgs[gx]) + '</span></div>' +
+        return '<article class="group"><div class="group-head"><div class="group-title"><h3>Grup ' + LETTERS[gx] + '</h3><span>' + g.length + ' öğrenci · ort. ' + fmt(avgs[gx]) + '</span></div>' +
           '<div class="bar" aria-hidden="true">' + bar + '</div></div><ul class="seats">' +
           g.map(function (id, i) {
             var s = map.get(id);
@@ -511,13 +510,13 @@ td.na { color: var(--muted); }
     return state.students.slice().sort(function (a, b) { return a.grade - b.grade || a.cls.localeCompare(b.cls, 'tr') || a.name.localeCompare(b.name, 'tr'); });
   }
   function renderMatrix() {
-    if (!state.students.length) return '<div class="empty"><h3>No students yet</h3></div>';
+    if (!state.students.length) return '<div class="empty"><h3>Henüz öğrenci yok</h3></div>';
     var where = matrixWhere();
     var any = state.exams.some(function (e) { return e.groups; });
-    return '<div class="toolbar"><h2>Group per exam</h2><span class="spacer"></span>' +
-      (any ? '<button data-action="copymatrix">Copy table</button>' : '') +
-      (any && dl ? '<button data-action="xlsx">Download Excel</button>' : '') + '</div>' +
-      '<div class="table-wrap"><table><thead><tr><th>Student</th><th>Yüzde</th>' +
+    return '<div class="toolbar"><h2>Sınav başına grup</h2><span class="spacer"></span>' +
+      (any ? '<button data-action="copymatrix">Tabloyu kopyala</button>' : '') +
+      (any && dl ? '<button data-action="xlsx">Excel indir</button>' : '') + '</div>' +
+      '<div class="table-wrap"><table><thead><tr><th>Öğrenci</th><th>Yüzde</th>' +
       state.exams.map(function (e) { return '<th>' + esc(e.name) + '</th>'; }).join('') + '</tr></thead><tbody>' +
       sortedStudents().map(function (s) {
         return '<tr><td>' + esc(label(s)) + '</td><td class="mono">' + fmt(s.pct) + '</td>' +
@@ -532,18 +531,18 @@ td.na { color: var(--muted); }
   function tsvExam(exam) {
     var map = studentMap();
     var size = Math.max.apply(null, exam.groups.map(function (g) { return g.length; }));
-    var rows = [exam.groups.map(function (_, gx) { return 'Group ' + LETTERS[gx]; }).join('\t')];
+    var rows = [exam.groups.map(function (_, gx) { return 'Grup ' + LETTERS[gx]; }).join('\t')];
     for (var i = 0; i < size; i++) {
       rows.push(exam.groups.map(function (g) { return g[i] ? label(map.get(g[i])) : ''; }).join('\t'));
     }
-    rows.push(exam.groups.map(function (g) { return 'Average ' + fmt(avgOf(g, map)); }).join('\t'));
+    rows.push(exam.groups.map(function (g) { return 'Ortalama ' + fmt(avgOf(g, map)); }).join('\t'));
     return rows.join('\n');
   }
   function tsvMatrix() {
     var where = matrixWhere();
     var rows = [['Okul Nu', 'Adı Soyadı', 'Sınıf Şube', 'Yüzde'].concat(state.exams.map(function (e) { return e.name; })).join('\t')];
     sortedStudents().forEach(function (s) {
-      rows.push([s.no, s.name, s.cls, fmt(s.pct)].concat(where.map(function (m) { return m.get(s.id) ? 'Group ' + m.get(s.id) : ''; })).join('\t'));
+      rows.push([s.no, s.name, s.cls, fmt(s.pct)].concat(where.map(function (m) { return m.get(s.id) ? 'Grup ' + m.get(s.id) : ''; })).join('\t'));
     });
     return rows.join('\n');
   }
@@ -561,16 +560,16 @@ td.na { color: var(--muted); }
     }
   }
   function sheetName(name, used) {
-    var base = String(name).replace(/[\[\]:*?\/\\]/g, ' ').trim().slice(0, 28) || 'Exam', n = base, i = 2;
+    var base = String(name).replace(/[\[\]:*?\/\\]/g, ' ').trim().slice(0, 28) || 'Sınav', n = base, i = 2;
     while (used[n.toLowerCase()]) { n = base + ' ' + i++; }
     used[n.toLowerCase()] = 1;
     return n;
   }
   function buildWorkbook(mixed) {
     var wb = new ExcelJS.Workbook();
-    wb.creator = 'Exam Group Mixer';
+    wb.creator = 'Sınav Grubu Oluşturucu';
     var map = studentMap(), used = {};
-    var today = new Date().toISOString().slice(0, 10);
+    var today = new Date().toLocaleDateString('tr-TR');
     var center = { vertical: 'middle', horizontal: 'center' };
     var left = { vertical: 'middle', horizontal: 'left', indent: 1 };
 
@@ -590,7 +589,7 @@ td.na { color: var(--muted); }
       ws.getRow(1).height = 32;
       ws.mergeCells(2, 1, 2, lastCol);
       var sub = ws.getCell(2, 1);
-      sub.value = state.students.length + ' students  ·  ' + k + ' groups  ·  ' + today;
+      sub.value = state.students.length + ' öğrenci  ·  ' + k + ' grup  ·  ' + today;
       sub.font = { name: 'Calibri', size: 11, color: argb('5A687C') }; sub.alignment = { vertical: 'middle', horizontal: 'left' };
 
       var maxSize = Math.max.apply(null, exam.groups.map(function (g) { return g.length; }));
@@ -599,7 +598,7 @@ td.na { color: var(--muted); }
         var r0 = 4 + Math.floor(gx / per) * (blockRows + 1), c0 = 1 + (gx % per) * 5;
         ws.mergeCells(r0, c0, r0, c0 + 3);
         var h = ws.getCell(r0, c0);
-        h.value = 'Group ' + LETTERS[gx] + '   ·   ' + g.length + ' students';
+        h.value = 'Grup ' + LETTERS[gx] + '   ·   ' + g.length + ' öğrenci';
         h.fill = fillOf(GROUP_COLORS[gx % GROUP_COLORS.length]);
         h.font = { name: 'Calibri', size: 13, bold: true, color: argb('FFFFFF') };
         h.alignment = center;
@@ -628,7 +627,7 @@ td.na { color: var(--muted); }
     });
 
     /* overview sheet: one row per student, one column per exam */
-    var ov = wb.addWorksheet(sheetName('All exams', used), { views: [{ state: 'frozen', ySplit: 1, showGridLines: false }],
+    var ov = wb.addWorksheet(sheetName('Tüm sınavlar', used), { views: [{ state: 'frozen', ySplit: 1, showGridLines: false }],
       pageSetup: { orientation: 'portrait', paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
     var heads = ['Okul Nu', 'Adı Soyadı', 'Sınıf Şube', 'Yüzde'].concat(mixed.map(function (e) { return e.name; }));
     var ow = [11, 30, 12, 10];
@@ -640,7 +639,7 @@ td.na { color: var(--muted); }
       ov.getColumn(i + 1).width = ow[i] || 14;
     });
     ov.getRow(1).height = 24;
-    var where = mixed.map(function (e) { var m = new Map(); e.groups.forEach(function (g, gx) { g.forEach(function (id) { m.set(id, 'Group ' + LETTERS[gx]); }); }); return m; });
+    var where = mixed.map(function (e) { var m = new Map(); e.groups.forEach(function (g, gx) { g.forEach(function (id) { m.set(id, 'Grup ' + LETTERS[gx]); }); }); return m; });
     sortedStudents().forEach(function (s, ri) {
       var r = ri + 2;
       var vals = [s.no, s.name, s.cls, Math.round(s.pct * 100) / 100].concat(where.map(function (m) { return m.get(s.id) || ''; }));
@@ -661,17 +660,17 @@ td.na { color: var(--muted); }
   async function downloadExcel() {
     var st = $('#rosterStatus');
     var mixed = state.exams.filter(function (e) { return e.groups; });
-    if (!mixed.length) { say(st, 'Mix at least one exam first.', 'bad'); return; }
-    if (typeof ExcelJS === 'undefined') { say(st, 'The Excel writer did not load. Check your connection and reload the page.', 'bad'); return; }
-    if (!dl) { say(st, 'Downloads are not available in this view.', 'bad'); return; }
+    if (!mixed.length) { say(st, 'Önce en az bir sınavın gruplarını oluşturun.', 'bad'); return; }
+    if (typeof ExcelJS === 'undefined') { say(st, 'Excel yazıcı yüklenemedi. Bağlantınızı kontrol edip sayfayı yenileyin.', 'bad'); return; }
+    if (!dl) { say(st, 'Bu görünümde indirme kullanılamıyor.', 'bad'); return; }
     try {
       var buf = await buildWorkbook(mixed).xlsx.writeBuffer();
       var blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      await dl.save({ filename: 'Exam-Groups-' + new Date().toISOString().slice(0, 10) + '.xlsx', data: blob });
-      say(st, 'Excel file saved.', 'ok');
+      await dl.save({ filename: 'Sinav-Gruplari-' + new Date().toISOString().slice(0, 10) + '.xlsx', data: blob });
+      say(st, 'Excel dosyası kaydedildi.', 'ok');
     } catch (e) {
       if (e && e.code === 'declined') return;
-      say(st, 'Could not create the Excel file' + (e && e.message ? ': ' + e.message : '') + '.', 'bad');
+      say(st, 'Excel dosyası oluşturulamadı' + (e && e.message ? ': ' + e.message : '') + '.', 'bad');
     }
   }
 
@@ -684,14 +683,14 @@ td.na { color: var(--muted); }
     var a = b.dataset.action, exam = activeExam();
     if (a === 'tab') { state.active = b.dataset.id; sel = null; save(); render(); }
     else if (a === 'addexam') {
-      var e = { id: uid(), name: 'Exam ' + (state.exams.length + 1), groups: null };
+      var e = { id: uid(), name: 'Sınav ' + (state.exams.length + 1), groups: null };
       state.exams.push(e); state.active = e.id; save(); render();
     }
     else if (a === 'mix' && exam) { if (!state.students.length) return; sel = null; mixExam(exam); save(); render(); }
     else if (a === 'delexam' && exam) {
-      arm(b, 'Click again to delete', function () {
+      arm(b, 'Silmek için tekrar tıklayın', function () {
         state.exams = state.exams.filter(function (x) { return x !== exam; });
-        if (!state.exams.length) state.exams.push({ id: uid(), name: 'Exam 1', groups: null });
+        if (!state.exams.length) state.exams.push({ id: uid(), name: 'Sınav 1', groups: null });
         state.active = state.exams[0].id; sel = null; save(); render();
       });
     }
@@ -715,7 +714,7 @@ td.na { color: var(--muted); }
     var t = ev.target;
     if (t.id === 'kSelect') {
       var k = +t.value;
-      if (k !== state.k) { state.k = k; resetMixes(); save(); render(); say($('#rosterStatus'), 'Group count changed to ' + k + '. Earlier mixes were cleared.', 'ok'); }
+      if (k !== state.k) { state.k = k; resetMixes(); save(); render(); say($('#rosterStatus'), 'Grup sayısı ' + k + ' olarak değiştirildi. Önceki gruplar silindi.', 'ok'); }
     } else if (t.id === 'avoid') { state.avoid = t.checked; save(); }
     else if (t.id === 'fileIn' && t.files && t.files[0]) importFile(t.files[0], t);
   });
@@ -723,7 +722,7 @@ td.na { color: var(--muted); }
     if (ev.target.id === 'examName') {
       var ex = activeExam();
       if (ex) {
-        ex.name = ev.target.value || 'Untitled exam';
+        ex.name = ev.target.value || 'Adsız sınav';
         save();
         var tab = document.querySelector('.tab[data-id="' + ex.id + '"]');
         if (tab) tab.lastChild.textContent = ex.name;
@@ -740,9 +739,9 @@ td.na { color: var(--muted); }
   if (state && state.sample) state = null;
   if (!state) {
     state = { students: [], k: 6, avoid: true, found: null, file: '', active: null, exams: [
-      { id: uid(), name: 'Exam 1', groups: null },
-      { id: uid(), name: 'Exam 2', groups: null },
-      { id: uid(), name: 'Exam 3', groups: null }
+      { id: uid(), name: 'Sınav 1', groups: null },
+      { id: uid(), name: 'Sınav 2', groups: null },
+      { id: uid(), name: 'Sınav 3', groups: null }
     ] };
     state.active = state.exams[0].id;
   }
