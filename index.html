@@ -654,6 +654,64 @@ td.na { color: var(--muted); }
       for (var rr = 3; rr <= totalRows; rr++) ws.getRow(rr).height = 21;
     });
 
+    /* class lists: one block per class, showing the group of each student in every exam */
+    var cl = wb.addWorksheet(sheetName('Sınıf Listeleri', used), { views: [{ showGridLines: false }],
+      pageSetup: { orientation: 'portrait', paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0, horizontalCentered: true,
+        margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.3, footer: 0.3 } } });
+    var cWidths = [11, 12, 30].concat(mixed.map(function () { return 14; }));
+    cWidths.forEach(function (w, i) { cl.getColumn(i + 1).width = w; });
+    var nCols = 3 + mixed.length;
+    var byClass = new Map();
+    state.students.forEach(function (s) { if (!byClass.has(s.cls)) byClass.set(s.cls, []); byClass.get(s.cls).push(s); });
+    var classNames = Array.from(byClass.keys()).sort(function (a, b) { return parseInt(a) - parseInt(b) || a.localeCompare(b, 'tr'); });
+    var groupOf = mixed.map(function (e) { var m = new Map(); e.groups.forEach(function (g, gx) { g.forEach(function (id) { m.set(id, gx); }); }); return m; });
+    var cRow = 1;
+    classNames.forEach(function (cn, ci) {
+      var list = byClass.get(cn).slice().sort(function (a, b) {
+        var na = parseFloat(a.no), nb = parseFloat(b.no);
+        if (!isNaN(na) && !isNaN(nb) && na !== nb) return na - nb;
+        return a.name.localeCompare(b.name, 'tr');
+      });
+      var r0 = cRow;
+      cl.mergeCells(r0, 1, r0, nCols);
+      var ch = cl.getCell(r0, 1);
+      ch.value = cn + '   ·   ' + list.length + ' öğrenci';
+      ch.fill = fillOf(NAVY);
+      ch.font = { name: 'Calibri', size: 14, bold: true, color: argb('FFFFFF') };
+      ch.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+      for (var cc = 2; cc <= nCols; cc++) cl.getCell(r0, cc).fill = fillOf(NAVY);
+      cl.getRow(r0).height = 26;
+      ['Okul Nu', 'Sınıf Şube', 'Adı Soyadı'].concat(mixed.map(function (e) { return e.name; })).forEach(function (txt, i) {
+        var cell = cl.getCell(r0 + 1, i + 1);
+        cell.value = txt; cell.fill = fillOf('E6EAF2');
+        cell.font = { name: 'Calibri', size: 11, bold: true, color: argb(NAVY) };
+        cell.alignment = i === 2 ? left : center;
+      });
+      cl.getRow(r0 + 1).height = 22;
+      list.forEach(function (s, i) {
+        var r = r0 + 2 + i;
+        [s.no, s.cls, s.name].forEach(function (v, j) {
+          var cell = cl.getCell(r, j + 1);
+          cell.value = v;
+          cell.font = { name: 'Calibri', size: 11, color: argb('142033') };
+          cell.alignment = j === 2 ? left : center;
+          if (i % 2 === 1) cell.fill = fillOf('F5F7FB');
+        });
+        groupOf.forEach(function (m, j) {
+          var gx = m.get(s.id), cell = cl.getCell(r, 4 + j);
+          cell.value = gx === undefined ? '' : 'Grup ' + LETTERS[gx];
+          cell.font = { name: 'Calibri', size: 11, bold: true, color: argb(gx === undefined ? '142033' : GROUP_COLORS[gx % GROUP_COLORS.length]) };
+          cell.alignment = center;
+          if (i % 2 === 1) cell.fill = fillOf('F5F7FB');
+        });
+        cl.getRow(r).height = 20;
+      });
+      boxBorders(cl, r0, 1, r0 + 1 + list.length, nCols);
+      cRow = r0 + 2 + list.length;
+      if (ci < classNames.length - 1) { cl.getRow(cRow - 1).addPageBreak(); }
+      cRow += 1;
+    });
+
     /* overview sheet: one row per student, one column per exam */
     var ov = wb.addWorksheet(sheetName('Tüm sınavlar', used), { views: [{ state: 'frozen', ySplit: 1, showGridLines: false }],
       pageSetup: { orientation: 'portrait', paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
