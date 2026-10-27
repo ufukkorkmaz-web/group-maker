@@ -6,7 +6,6 @@
 <title>Sınav Grubu Oluşturucu</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>
-/* Layout: upload panel on the left, exam tabs + group cards on the right; stacks on phones. */
 /* Ufuk Korkmaz - 2026 */
 :root {
   --bg: #F2F4F8;
@@ -728,6 +727,43 @@ td.na { color: var(--muted); }
       });
       var totalRows = 3 + Math.ceil(k / per) * (blockRows + 1);
       for (var rr = 3; rr <= totalRows; rr++) ws.getRow(rr).height = 21;
+
+      /* print list for optical forms: one student per row, groups one after another in the same order as the sheet above */
+      var op = wb.addWorksheet(sheetName(String(exam.name).slice(0, 22) + ' Optik', used), {
+        views: [{ state: 'frozen', ySplit: 1, showGridLines: false }],
+        pageSetup: { orientation: 'portrait', paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0, horizontalCentered: true, printTitlesRow: '1:1',
+          margins: { left: 0.5, right: 0.5, top: 0.6, bottom: 0.6, header: 0.3, footer: 0.3 } }
+      });
+      [7, 10, 12, 12, 34].forEach(function (w, i) { op.getColumn(i + 1).width = w; });
+      ['Sıra', 'Grup', 'Okul Nu', 'Sınıf Şube', 'Adı Soyadı'].forEach(function (txt, i) {
+        var cell = op.getCell(1, i + 1);
+        cell.value = txt; cell.fill = fillOf(NAVY);
+        cell.font = { name: 'Calibri', size: 11, bold: true, color: argb('FFFFFF') };
+        cell.alignment = i === 4 ? left : center;
+      });
+      op.getRow(1).height = 24;
+      var oRow = 2, oSeq = 1, oTotal = exam.groups.reduce(function (t, g) { return t + g.length; }, 0);
+      exam.groups.forEach(function (g, gx) {
+        g.forEach(function (id, i) {
+          var s = map.get(id), r = oRow;
+          [oSeq, 'Grup ' + LETTERS[gx], s.no, s.cls, s.name].forEach(function (v, j) {
+            var cell = op.getCell(r, j + 1);
+            cell.value = v;
+            cell.font = { name: 'Calibri', size: 11, bold: j === 1, color: argb(j === 1 ? GROUP_COLORS[gx % GROUP_COLORS.length] : '142033') };
+            cell.alignment = j === 4 ? left : center;
+            if (gx % 2 === 1) cell.fill = fillOf('F5F7FB');
+            cell.border = {
+              top: { style: i === 0 && gx > 0 ? 'medium' : 'thin', color: argb(i === 0 && gx > 0 ? NAVY : GRID) },
+              left: { style: 'thin', color: argb(GRID) },
+              right: { style: 'thin', color: argb(GRID) },
+              bottom: { style: oSeq === oTotal ? 'medium' : 'thin', color: argb(oSeq === oTotal ? NAVY : GRID) }
+            };
+          });
+          op.getRow(r).height = 20;
+          oRow++; oSeq++;
+        });
+      });
+      op.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 5 } };
     });
 
     /* class lists: one block per class, showing the group of each student in every exam */
