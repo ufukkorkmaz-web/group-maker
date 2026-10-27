@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>
 /* Layout: upload panel on the left, exam tabs + group cards on the right; stacks on phones. */
+/* Ufuk Korkmaz - 2026 */
 :root {
   --bg: #F2F4F8;
   --surface: #FFFFFF;
@@ -104,6 +105,9 @@ button.danger { color: var(--warn); }
 }
 .drop:hover, .drop.over { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--bg)); }
 .drop strong { font: 700 16px/1.2 var(--font-display); }
+.btn { position: relative; }
+.btn input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.btn:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
 .drop input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .drop:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
 
@@ -201,7 +205,7 @@ td.na { color: var(--muted); }
   <header>
     <div>
       <h1>Sınav Grubu Oluşturucu</h1>
-      <p class="lede">Puan tablosunu yükleyin. Öğrenciler Yüzde değerine göre sıralanıp gruplara ayrılır. İster en yüksek puanlılar ilk grupta, en düşükler son grupta olsun, ister her grup dengeli karışsın.</p>
+      <p class="lede">Puan tablosunu yükleyin. Öğrenciler puana göre sıralanıp gruplara ayrılır. İster en yüksek puanlılar ilk grupta, en düşükler son grupta olsun, ister her grup dengeli karışsın.</p>
     </div>
     <div class="controls">
       <label class="k-control" for="kSelect">Sınav başına grup sayısı
@@ -226,9 +230,13 @@ td.na { color: var(--muted); }
       <h2 id="rosterTitle">Puan tablosu</h2>
       <label class="drop" id="drop" for="fileIn">
         <strong>Excel dosyası yükle</strong>
-        <span class="muted" style="font-size:13px">Seçmek için tıklayın veya dosyayı buraya sürükleyin (.xlsx, .xls, .csv)</span>
-        <input type="file" id="fileIn" accept=".xlsx,.xlsm,.xls,.csv">
+        <span class="muted" style="font-size:13px">Seçmek için tıklayın veya dosyayı buraya sürükleyin (.xlsx, .xls, .csv). Birden fazla dosya seçebilirsiniz.</span>
+        <input type="file" id="fileIn" accept=".xlsx,.xlsm,.xls,.csv" multiple>
       </label>
+      <div class="row">
+        <label class="btn" for="fileAdd">+ Listeye dosya ekle<input type="file" id="fileAdd" accept=".xlsx,.xlsm,.xls,.csv" multiple></label>
+      </div>
+      <p class="muted" style="font-size:13px">7. ve 8. sınıf gibi ayrı dosyaları birlikte seçin ya da sırayla ekleyin. İzleme sınavı dosyalarında GNL altındaki İZLEME DEĞ. NET puanlarının ortalaması kullanılır.</p>
       <div class="cols" id="cols" aria-label="Sayfanın aradığı sütunlar"></div>
       <p class="status" id="rosterStatus" role="status" aria-live="polite"></p>
       <div id="rosterInfo" style="display:flex;flex-direction:column;gap:12px"></div>
@@ -255,11 +263,12 @@ td.na { color: var(--muted); }
     pct: ['yuzde', 'yuzdesi', 'basariyuzdesi', 'yuzdelik']
   };
   var MODE_DESC = {
-    ranked: 'Öğrenciler Yüzde değerine göre sıralanır. En yüksek puanlı öğrenciler ilk grupta, en düşük puanlı öğrenciler son grupta yer alır.',
+    ranked: 'Öğrenciler puana göre sıralanır. En yüksek puanlı öğrenciler ilk grupta, en düşük puanlı öğrenciler son grupta yer alır.',
     balanced: 'Her gruba hem yüksek hem düşük puanlı öğrenciler eşit dağıtılır. Grupların ortalaması birbirine yakın olur ve sınıf seviyeleri karışır.'
   };
   var MODE_NAME = { ranked: 'Başarı Sırasına Göre', balanced: 'Dengeli Dağıtım' };
   var state = null, sel = null, dl = null;
+  function SN() { return state && state.kind === 'net' ? 'Ortalama Net' : 'Yüzde'; }
   var $ = function (s) { return document.querySelector(s); };
 
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -292,14 +301,43 @@ td.na { color: var(--muted); }
     best.ok = best.map.name !== undefined && best.map.sinif !== undefined && best.map.pct !== undefined;
     return best;
   }
+  function numOf(v) {
+    if (typeof v === 'number') return v;
+    return parseFloat(String(v == null ? '' : v).replace('%', '').replace(',', '.').trim());
+  }
+  /* "GNL" group title: find the İZLEME DEĞ. n NET columns under it (not the SIRA columns) */
+  function findNetCols(ws, rows, hr) {
+    var rOff = 0, cOff = 0;
+    try { var rg = XLSX.utils.decode_range(ws['!ref']); rOff = rg.s.r; cOff = rg.s.c; } catch (e) {}
+    var gr = -1, gc = -1, r, c;
+    for (r = 0; r < Math.min(rows.length, 40) && gr < 0; r++) {
+      for (c = 0; c < rows[r].length; c++) { if (norm(rows[r][c]) === 'gnl') { gr = r; gc = c; break; } }
+    }
+    if (gr < 0) return [];
+    var end = rows[gr].length - 1, merged = false;
+    (ws['!merges'] || []).forEach(function (m) { if (m.s.r === gr + rOff && m.s.c === gc + cOff) { end = m.e.c - cOff; merged = true; } });
+    if (!merged) for (c = gc + 1; c < rows[gr].length; c++) { if (String(rows[gr][c]).trim()) { end = c - 1; break; } }
+    var cols = [];
+    for (var ci = gc; ci <= end; ci++) if (/^izlemedeg\d+net$/.test(norm(rows[hr][ci]))) cols.push(ci);
+    return cols;
+  }
   function parseWorkbook(wb) {
-    var students = [], skipped = 0, noPct = 0, found = {}, bestMiss = null;
+    var students = [], skipped = 0, noPct = 0, found = {}, bestMiss = null, kind = null, nets = 0;
     wb.SheetNames.forEach(function (sn) {
-      var rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: '', raw: true });
-      var h = findHeader(rows);
-      if (!h.ok) { if (!bestMiss || h.n > bestMiss.n) bestMiss = h; return; }
-      Object.keys(h.map).forEach(function (k) { found[k] = true; });
-      var m = h.map;
+      var ws = wb.Sheets[sn];
+      var rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: true });
+      var h = findHeader(rows), m = h.map;
+      if (m.name === undefined || m.sinif === undefined) { if (!bestMiss || h.n > bestMiss.n) bestMiss = h; return; }
+      var sheetKind = 'pct', netCols = [];
+      if (m.pct === undefined) {
+        netCols = findNetCols(ws, rows, h.r);
+        if (!netCols.length) { if (!bestMiss || h.n > bestMiss.n) bestMiss = h; return; }
+        sheetKind = 'net';
+      }
+      if (kind && kind !== sheetKind) return;
+      kind = sheetKind; nets = Math.max(nets, netCols.length);
+      Object.keys(m).forEach(function (k) { found[k] = true; });
+      if (sheetKind === 'net') found.pct = true;
       for (var i = h.r + 1; i < rows.length; i++) {
         var row = rows[i];
         var name = String(row[m.name] == null ? '' : row[m.name]).trim();
@@ -318,39 +356,69 @@ td.na { color: var(--muted); }
           var m2 = sinifRaw.toLocaleUpperCase('tr').match(/\d+\s*[-\/. ]?\s*([A-ZÇĞİÖŞÜ])$/);
           if (m2) sube = m2[1];
         }
-        var pv = row[m.pct], pct;
-        if (typeof pv === 'number') pct = pv;
-        else { pct = parseFloat(String(pv).replace('%', '').replace(',', '.').trim()); }
-        if (isNaN(pct)) { pct = 0; noPct++; }
+        var pct;
+        if (sheetKind === 'pct') {
+          pct = numOf(row[m.pct]);
+          if (isNaN(pct)) { pct = 0; noPct++; }
+        } else {
+          var vals = netCols.map(function (ci) { return numOf(row[ci]); }).filter(function (v) { return !isNaN(v); });
+          if (!vals.length) { pct = 0; noPct++; }
+          else pct = Math.round(vals.reduce(function (t, v) { return t + v; }, 0) / vals.length * 100) / 100;
+        }
         var no = m.no !== undefined && row[m.no] != null ? String(row[m.no]).trim() : '';
         students.push({ id: 's' + students.length, no: no, name: name, grade: grade, sube: sube, cls: grade + (sube ? ' ' + sube : ''), pct: pct });
       }
     });
     if (!students.length) {
       var missing = COLS.filter(function (c) { return !bestMiss || bestMiss.map[c[0]] === undefined; }).map(function (c) { return c[1]; });
-      return { error: 'Sütun başlıkları bulunamadı' + (missing.length ? ' (eksik: ' + missing.join(', ') + ')' : '') + '. Başlık satırında Okul Nu, Adı-Soyadı, Sınıf, Şube ve Yüzde sütunlarının olduğundan emin olun.' };
+      return { error: 'Sütun başlıkları bulunamadı' + (missing.length ? ' (eksik: ' + missing.join(', ') + ')' : '') + '. Başlık satırında Okul Nu, Adı-Soyadı, Sınıf, Şube ve Yüzde sütunları olmalı. İzleme sınavı dosyalarında GNL başlığının altında İZLEME DEĞ. NET sütunları aranır.' };
     }
-    return { students: students, skipped: skipped, noPct: noPct, found: found };
+    return { students: students, skipped: skipped, noPct: noPct, found: found, kind: kind, nets: nets };
   }
-  function importFile(f, input) {
-    var st = $('#rosterStatus');
-    function finish(res) {
-      input.value = '';
-      if (res.error) { say(st, res.error, 'bad'); return; }
-      state.students = res.students; state.found = res.found; state.file = f.name; state.sample = false;
-      resetMixes(); save(); renderRoster(); render();
-      var msg = res.students.length + ' öğrenci yüklendi.';
-      if (res.skipped) msg += ' ' + res.skipped + ' satır atlandı (sınıf bilgisi yok).';
-      if (res.noPct) msg += ' ' + res.noPct + ' öğrencinin Yüzde değeri yok, 0 sayıldı.';
-      say(st, msg + ' Önceki gruplar silindi.', res.noPct || res.skipped ? 'bad' : 'ok');
-    }
-    if (typeof XLSX === 'undefined') { say(st, 'Excel okuyucu yüklenemedi. Bağlantınızı kontrol edip sayfayı yenileyin.', 'bad'); input.value = ''; return; }
+  function readOne(f) {
     var isCsv = /\.csv$/i.test(f.name);
-    (isCsv ? f.text() : f.arrayBuffer()).then(function (data) {
+    return (isCsv ? f.text() : f.arrayBuffer()).then(function (data) {
       var wb;
-      try { wb = XLSX.read(data, { type: isCsv ? 'string' : 'array' }); } catch (e) { return finish({ error: 'Bu dosya okunamadı.' }); }
-      finish(parseWorkbook(wb));
-    }, function () { finish({ error: 'Bu dosya okunamadı.' }); });
+      try { wb = XLSX.read(data, { type: isCsv ? 'string' : 'array' }); } catch (e) { return { error: 'Bu dosya okunamadı.', name: f.name }; }
+      var r = parseWorkbook(wb); r.name = f.name; return r;
+    }, function () { return { error: 'Bu dosya okunamadı.', name: f.name }; });
+  }
+  function importFiles(files, input, append) {
+    var st = $('#rosterStatus');
+    if (!files.length) return;
+    if (typeof XLSX === 'undefined') { say(st, 'Excel okuyucu yüklenemedi. Bağlantınızı kontrol edip sayfayı yenileyin.', 'bad'); input.value = ''; return; }
+    Promise.all(files.map(readOne)).then(function (results) {
+      input.value = '';
+      for (var i = 0; i < results.length; i++) if (results[i].error) { say(st, results[i].name + ': ' + results[i].error, 'bad'); return; }
+      var kind = results[0].kind;
+      var keep = append && state.students.length;
+      if (results.some(function (r) { return r.kind !== kind; }) || (keep && state.kind && state.kind !== kind)) {
+        say(st, 'Dosyalar farklı puan türünde. Yüzde ve İZLEME DEĞ. NET dosyaları birlikte kullanılamaz.', 'bad'); return;
+      }
+      var all = keep ? state.students.slice() : [], seen = {}, dups = 0, skipped = 0, noPct = 0, before = all.length;
+      all.forEach(function (s) { seen[[s.no, s.cls, s.name].join('|')] = 1; });
+      var found = keep && state.found ? Object.assign({}, state.found) : {};
+      results.forEach(function (r) {
+        skipped += r.skipped; noPct += r.noPct;
+        Object.keys(r.found).forEach(function (k) { found[k] = true; });
+        r.students.forEach(function (s) {
+          var key = [s.no, s.cls, s.name].join('|');
+          if (seen[key]) { dups++; return; }
+          seen[key] = 1; all.push(s);
+        });
+      });
+      all.forEach(function (s, i) { s.id = 's' + i; });
+      var names = results.map(function (r) { return r.name; }).join(', ');
+      state.students = all; state.kind = kind; state.found = found;
+      state.file = keep && state.file ? state.file + ', ' + names : names;
+      resetMixes(); save(); renderRoster(); render();
+      var msg = keep ? (all.length - before) + ' öğrenci eklendi (toplam ' + all.length + ').' : all.length + ' öğrenci yüklendi.';
+      if (kind === 'net') msg += ' Puan olarak GNL altındaki İZLEME DEĞ. NET ortalaması kullanıldı; G (girmedi) olan sınavlar ortalamaya katılmadı.';
+      if (dups) msg += ' ' + dups + ' tekrar eden öğrenci atlandı.';
+      if (skipped) msg += ' ' + skipped + ' satır atlandı (sınıf bilgisi yok).';
+      if (noPct) msg += ' ' + noPct + ' öğrencinin ' + (kind === 'net' ? 'hiç İZLEME DEĞ. NET puanı' : 'Yüzde değeri') + ' yok, 0 sayıldı.';
+      say(st, msg + ' Önceki gruplar silindi.', noPct || skipped ? 'bad' : 'ok');
+    });
   }
 
   /* ---------- mixing ---------- */
@@ -383,8 +451,16 @@ td.na { color: var(--muted); }
     state.exams.forEach(function (e) { if (e !== exam && e.groups) pairsOf(e.groups, set); });
     return set;
   }
+  /* Within a group: take one student from each grade level in turn (highest grade first, e.g. 8, 7, 8, 7),
+     and keep each grade level sorted from the highest score to the lowest. */
   function byScore(g, map) {
-    return g.slice().sort(function (a, b) { return map.get(b).pct - map.get(a).pct || map.get(a).name.localeCompare(map.get(b).name, 'tr'); });
+    var by = new Map();
+    g.slice().sort(function (a, b) { return map.get(b).pct - map.get(a).pct || map.get(a).name.localeCompare(map.get(b).name, 'tr'); })
+      .forEach(function (id) { var gr = map.get(id).grade; if (!by.has(gr)) by.set(gr, []); by.get(gr).push(id); });
+    var lists = Array.from(by.keys()).sort(function (a, b) { return b - a; }).map(function (gr) { return by.get(gr); });
+    var out = [];
+    for (var i = 0; out.length < g.length; i++) lists.forEach(function (l) { if (i < l.length) out.push(l[i]); });
+    return out;
   }
   function dealRanked(k) {
     var sorted = shuffle(state.students).sort(function (a, b) { return b.pct - a.pct; });
@@ -438,7 +514,7 @@ td.na { color: var(--muted); }
   /* ---------- render ---------- */
   function renderRoster() {
     $('#cols').innerHTML = COLS.map(function (c) {
-      return '<span class="col' + (state.found && state.found[c[0]] ? ' on' : '') + '">' + c[1] + '</span>';
+      return '<span class="col' + (state.found && state.found[c[0]] ? ' on' : '') + '">' + (c[0] === 'pct' && state.kind === 'net' ? 'GNL › İZLEME DEĞ. NET' : c[1]) + '</span>';
     }).join('');
     var n = state.students.length;
     if (!n) { $('#rosterInfo').innerHTML = '<p class="muted" style="font-size:13px">Henüz öğrenci yok. Başlamak için dosyanızı yükleyin.</p>'; return; }
@@ -450,12 +526,12 @@ td.na { color: var(--muted); }
       '<dl class="facts-list">' +
       '<dt>Dosya</dt><dd>' + esc(state.file || '') + '</dd>' +
       '<dt>Öğrenci</dt><dd>' + n + '</dd>' +
-      '<dt>Yüzde</dt><dd>' + fmt(Math.min.apply(null, pcts)) + ' – ' + fmt(Math.max.apply(null, pcts)) + '</dd>' +
+      '<dt>' + SN() + '</dt><dd>' + fmt(Math.min.apply(null, pcts)) + ' – ' + fmt(Math.max.apply(null, pcts)) + '</dd>' +
       '<dt>Sınıflar</dt><dd>' + classes.map(esc).join(', ') + '</dd></dl>' +
       '<div class="legend">' + gi.gs.map(function (g) {
         return '<span class="legend-item">' + chip(g, gi) + '<span class="mono">×' + state.students.filter(function (s) { return s.grade === g; }).length + '</span></span>';
       }).join('') + '</div>' +
-      '<details><summary>Öğrencileri göster (en yüksek Yüzde en üstte)</summary><div class="scroll"><table><thead><tr><th>Okul Nu</th><th>Sınıf Şube</th><th>Adı Soyadı</th><th>Yüzde</th></tr></thead><tbody>' +
+      '<details><summary>Öğrencileri göster (en yüksek puan en üstte)</summary><div class="scroll"><table><thead><tr><th>Okul Nu</th><th>Sınıf Şube</th><th>Adı Soyadı</th><th>' + SN() + '</th></tr></thead><tbody>' +
       ranked.map(function (s) { return '<tr><td class="mono">' + esc(s.no) + '</td><td>' + esc(s.cls) + '</td><td>' + esc(s.name) + '</td><td class="mono">' + fmt(s.pct) + '</td></tr>'; }).join('') +
       '</tbody></table></div></details>';
   }
@@ -495,7 +571,7 @@ td.na { color: var(--muted); }
       html += '<div class="empty"><h3>Önce puan tablosunu yükleyin</h3><p class="muted">Yükleme kutusunu kullanın.</p></div>';
     } else if (!exam.groups) {
       html += '<div class="empty"><h3>' + esc(exam.name) + ' için henüz grup yok</h3>' +
-        '<p class="muted">' + n + ' öğrenci Yüzde değerine göre sıralanıp ' + state.k + ' gruba dağıtılacak.</p>' +
+        '<p class="muted">' + n + ' öğrenci puana göre sıralanıp ' + state.k + ' gruba dağıtılacak.</p>' +
         '<button class="primary" data-action="mix">Grupları oluştur</button></div>';
     } else {
       var map = studentMap();
@@ -507,7 +583,7 @@ td.na { color: var(--muted); }
       html += '<div class="summary"><div class="facts"><strong>' + n + ' öğrenci</strong>, ' + state.k + ' grup, her grupta ' + (mn === mx ? mn : mn + '–' + mx) + ' kişi</div>' +
         '<span class="badge plain">Ortalamalar ' + fmt(Math.min.apply(null, avgs)) + ' – ' + fmt(Math.max.apply(null, avgs)) + '</span>' +
         (others ? '<span class="badge ' + (rep ? 'warn' : 'good') + '">' + (rep ? rep + ' çift diğer sınavlarla tekrar ediyor' : 'Diğer sınavlarla tekrar eden çift yok') + '</span>' : '') + '</div>';
-      html += '<p class="muted" style="font-size:13px">' + ((exam.mode || state.mode) === 'ranked' ? 'En yüksek Yüzde değerine sahip öğrenciler ilk grupta, en düşük olanlar son grupta yer alır. ' : '') + 'Her grupta öğrenciler en yüksek Yüzde değerinden en düşüğe doğru sıralanır. Yer değiştirmek için bir öğrenciye, sonra diğerine tıklayın.</p>';
+      html += '<p class="muted" style="font-size:13px">' + ((exam.mode || state.mode) === 'ranked' ? 'En yüksek puana sahip öğrenciler ilk grupta, en düşük olanlar son grupta yer alır. ' : '') + 'Her grupta öğrenciler sınıf seviyelerine göre sırayla dizilir (örneğin bir 8. sınıf, bir 7. sınıf). Her seviye kendi içinde en yüksek puandan en düşüğe sıralanır. Yer değiştirmek için bir öğrenciye, sonra diğerine tıklayın.</p>';
       html += '<div class="groups">' + exam.groups.map(function (g, gx) {
         var counts = new Map();
         g.forEach(function (id) { var gr = map.get(id).grade; counts.set(gr, (counts.get(gr) || 0) + 1); });
@@ -544,7 +620,7 @@ td.na { color: var(--muted); }
     return '<div class="toolbar"><h2>Sınav başına grup</h2><span class="spacer"></span>' +
       (any ? '<button data-action="copymatrix">Tabloyu kopyala</button>' : '') +
       (any && dl ? '<button data-action="xlsx">Excel indir</button>' : '') + '</div>' +
-      '<div class="table-wrap"><table><thead><tr><th>Öğrenci</th><th>Yüzde</th>' +
+      '<div class="table-wrap"><table><thead><tr><th>Öğrenci</th><th>' + SN() + '</th>' +
       state.exams.map(function (e) { return '<th>' + esc(e.name) + '</th>'; }).join('') + '</tr></thead><tbody>' +
       sortedStudents().map(function (s) {
         return '<tr><td>' + esc(label(s)) + '</td><td class="mono">' + fmt(s.pct) + '</td>' +
@@ -568,7 +644,7 @@ td.na { color: var(--muted); }
   }
   function tsvMatrix() {
     var where = matrixWhere();
-    var rows = [['Okul Nu', 'Sınıf Şube', 'Adı Soyadı', 'Yüzde'].concat(state.exams.map(function (e) { return e.name; })).join('\t')];
+    var rows = [['Okul Nu', 'Sınıf Şube', 'Adı Soyadı', SN()].concat(state.exams.map(function (e) { return e.name; })).join('\t')];
     sortedStudents().forEach(function (s) {
       rows.push([s.no, s.cls, s.name, fmt(s.pct)].concat(where.map(function (m) { return m.get(s.id) ? 'Grup ' + m.get(s.id) : ''; })).join('\t'));
     });
@@ -715,7 +791,7 @@ td.na { color: var(--muted); }
     /* overview sheet: one row per student, one column per exam */
     var ov = wb.addWorksheet(sheetName('Tüm sınavlar', used), { views: [{ state: 'frozen', ySplit: 1, showGridLines: false }],
       pageSetup: { orientation: 'portrait', paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
-    var heads = ['Okul Nu', 'Sınıf Şube', 'Adı Soyadı', 'Yüzde'].concat(mixed.map(function (e) { return e.name; }));
+    var heads = ['Okul Nu', 'Sınıf Şube', 'Adı Soyadı', SN()].concat(mixed.map(function (e) { return e.name; }));
     var ow = [11, 12, 30, 10];
     heads.forEach(function (txt, i) {
       var cell = ov.getCell(1, i + 1);
@@ -813,7 +889,7 @@ td.na { color: var(--muted); }
       var k = +t.value;
       if (k !== state.k) { state.k = k; resetMixes(); save(); render(); say($('#rosterStatus'), 'Grup sayısı ' + k + ' olarak değiştirildi. Önceki gruplar silindi.', 'ok'); }
     } else if (t.id === 'avoid') { state.avoid = t.checked; save(); }
-    else if (t.id === 'fileIn' && t.files && t.files[0]) importFile(t.files[0], t);
+    else if ((t.id === 'fileIn' || t.id === 'fileAdd') && t.files && t.files.length) importFiles(Array.from(t.files), t, t.id === 'fileAdd');
   });
   document.addEventListener('input', function (ev) {
     if (ev.target.id === 'examName') {
@@ -829,7 +905,7 @@ td.na { color: var(--muted); }
   var drop = $('#drop');
   ['dragenter', 'dragover'].forEach(function (n) { drop.addEventListener(n, function (e) { e.preventDefault(); drop.classList.add('over'); }); });
   ['dragleave', 'drop'].forEach(function (n) { drop.addEventListener(n, function (e) { e.preventDefault(); drop.classList.remove('over'); }); });
-  drop.addEventListener('drop', function (e) { var f = e.dataTransfer && e.dataTransfer.files[0]; if (f) importFile(f, $('#fileIn')); });
+  drop.addEventListener('drop', function (e) { var fl = e.dataTransfer && e.dataTransfer.files; if (fl && fl.length) importFiles(Array.from(fl), $('#fileIn'), false); });
 
   /* ---------- boot ---------- */
   state = load();
