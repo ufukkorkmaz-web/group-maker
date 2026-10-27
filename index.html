@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Sınav Grup Karma Sistemi</title>
+<title>Sınav Grubu Oluşturucu</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>
 /* Layout: upload panel on the left, exam tabs + group cards on the right; stacks on phones. */
@@ -60,6 +60,15 @@ p { margin: 0; }
 
 header { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: flex-end; justify-content: space-between; }
 header .lede { color: var(--muted); max-width: 64ch; margin-top: 6px; }
+.method { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+.method-head { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+.method-title { font: 700 15px/1 var(--font-display); }
+.seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg-btn { border: 0; border-radius: 0; padding: 8px 14px; background: var(--surface); }
+.seg-btn + .seg-btn { border-left: 1px solid var(--line); }
+.seg-btn[aria-pressed="true"], .seg-btn[aria-pressed="true"]:hover { background: var(--accent); color: var(--accent-ink); }
+.method-desc { font-size: 13px; color: var(--muted); max-width: 90ch; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 20px; }
 .k-control { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
 
 .layout { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 20px; align-items: start; }
@@ -191,13 +200,26 @@ td.na { color: var(--muted); }
 <div class="app">
   <header>
     <div>
-      <h1>Sınav Grup Karma Sistemi</h1>
-      <p class="lede">Bir puan tablosunu yükleyin. Öğrenciler yüzde değerine göre sıralanır ve hem üstten hem alttan dağıtılır.</p>
+      <h1>Sınav Grubu Oluşturucu</h1>
+      <p class="lede">Puan tablosunu yükleyin. Öğrenciler Yüzde değerine göre sıralanıp gruplara ayrılır. İster en yüksek puanlılar ilk grupta, en düşükler son grupta olsun, ister her grup dengeli karışsın.</p>
     </div>
-    <label class="k-control" for="kSelect">Sınav başına grup sayısı
-      <select id="kSelect" aria-label="Grup sayısı"></select>
-    </label>
+    <div class="controls">
+      <label class="k-control" for="kSelect">Sınav başına grup sayısı
+        <select id="kSelect" aria-label="Grup sayısı"></select>
+      </label>
+    </div>
   </header>
+
+  <section class="method" aria-label="Gruplama yöntemi">
+    <div class="method-head">
+      <span class="method-title">Gruplama yöntemi</span>
+      <div class="seg" role="group" aria-label="Gruplama yöntemi">
+        <button class="seg-btn" data-action="mode" data-mode="ranked" aria-pressed="true">Başarı Sırasına Göre</button>
+        <button class="seg-btn" data-action="mode" data-mode="balanced" aria-pressed="false">Dengeli Dağıtım</button>
+      </div>
+    </div>
+    <p class="method-desc" id="methodDesc"></p>
+  </section>
 
   <div class="layout">
     <section class="panel" aria-labelledby="rosterTitle">
@@ -232,6 +254,11 @@ td.na { color: var(--muted); }
     sinif: ['sinif', 'seviye'],
     pct: ['yuzde', 'yuzdesi', 'basariyuzdesi', 'yuzdelik']
   };
+  var MODE_DESC = {
+    ranked: 'Öğrenciler Yüzde değerine göre sıralanır. En yüksek puanlı öğrenciler ilk grupta, en düşük puanlı öğrenciler son grupta yer alır.',
+    balanced: 'Her gruba hem yüksek hem düşük puanlı öğrenciler eşit dağıtılır. Grupların ortalaması birbirine yakın olur ve sınıf seviyeleri karışır.'
+  };
+  var MODE_NAME = { ranked: 'Başarı Sırasına Göre', balanced: 'Dengeli Dağıtım' };
   var state = null, sel = null, dl = null;
   var $ = function (s) { return document.querySelector(s); };
 
@@ -245,7 +272,7 @@ td.na { color: var(--muted); }
   function fmt(v) { return String(Math.round(v * 100) / 100); }
   function save() { try { localStorage.setItem(LS, JSON.stringify(state)); } catch (e) {} }
   function load() { try { var s = JSON.parse(localStorage.getItem(LS)); if (s && s.students && s.exams) return s; } catch (e) {} return null; }
-  function label(s) { return [s.no, s.name, s.cls].filter(Boolean).join(' - '); }
+  function label(s) { return [s.no, s.cls, s.name].filter(Boolean).join(' - '); }
 
   /* ---------- Excel reading ---------- */
   function norm(h) {
@@ -351,29 +378,28 @@ td.na { color: var(--muted); }
     }
     return groups;
   }
-  function seatOrder(ids, map) {
-    var b = new Map();
-    shuffle(ids).forEach(function (id) { var g = map.get(id).grade; if (!b.has(g)) b.set(g, []); b.get(g).push(id); });
-    var out = [], last = null;
-    while (out.length < ids.length) {
-      var best = null;
-      b.forEach(function (arr, g) {
-        if (!arr.length || g === last) return;
-        if (best === null || arr.length > b.get(best).length || (arr.length === b.get(best).length && Math.random() < 0.5)) best = g;
-      });
-      if (best === null) b.forEach(function (arr, g) { if (best === null && arr.length) best = g; });
-      out.push(b.get(best).pop());
-      last = best;
-    }
-    return out;
-  }
   function otherPairs(exam) {
     var set = new Set();
     state.exams.forEach(function (e) { if (e !== exam && e.groups) pairsOf(e.groups, set); });
     return set;
   }
+  function byScore(g, map) {
+    return g.slice().sort(function (a, b) { return map.get(b).pct - map.get(a).pct || map.get(a).name.localeCompare(map.get(b).name, 'tr'); });
+  }
+  function dealRanked(k) {
+    var sorted = shuffle(state.students).sort(function (a, b) { return b.pct - a.pct; });
+    var base = Math.floor(sorted.length / k), extra = sorted.length % k, idx = 0, groups = [];
+    for (var g = 0; g < k; g++) {
+      var size = base + (g < extra ? 1 : 0);
+      groups.push(sorted.slice(idx, idx + size).map(function (s) { return s.id; }));
+      idx += size;
+    }
+    return groups;
+  }
   function mixExam(exam) {
     var map = studentMap();
+    exam.mode = state.mode;
+    if (state.mode === 'ranked') { exam.groups = dealRanked(state.k).map(function (g) { return byScore(g, map); }); return; }
     var pairs = state.avoid ? otherPairs(exam) : new Set();
     var attempts = pairs.size ? 400 : 1, best = null, bestScore = Infinity;
     for (var a = 0; a < attempts; a++) {
@@ -381,7 +407,7 @@ td.na { color: var(--muted); }
       var sc = pairs.size ? countRepeats(g, pairs) : 0;
       if (sc < bestScore) { best = g; bestScore = sc; if (sc === 0) break; }
     }
-    exam.groups = best.map(function (g) { return seatOrder(g, map); });
+    exam.groups = best.map(function (g) { return byScore(g, map); });
   }
   function avgOf(g, map) { return g.length ? g.reduce(function (t, id) { return t + map.get(id).pct; }, 0) / g.length : 0; }
 
@@ -429,8 +455,8 @@ td.na { color: var(--muted); }
       '<div class="legend">' + gi.gs.map(function (g) {
         return '<span class="legend-item">' + chip(g, gi) + '<span class="mono">×' + state.students.filter(function (s) { return s.grade === g; }).length + '</span></span>';
       }).join('') + '</div>' +
-      '<details><summary>Öğrencileri göster (en yüksek Yüzde en üstte)</summary><div class="scroll"><table><thead><tr><th>Okul Nu</th><th>Adı Soyadı</th><th>Sınıf Şube</th><th>Yüzde</th></tr></thead><tbody>' +
-      ranked.map(function (s) { return '<tr><td class="mono">' + esc(s.no) + '</td><td>' + esc(s.name) + '</td><td>' + esc(s.cls) + '</td><td class="mono">' + fmt(s.pct) + '</td></tr>'; }).join('') +
+      '<details><summary>Öğrencileri göster (en yüksek Yüzde en üstte)</summary><div class="scroll"><table><thead><tr><th>Okul Nu</th><th>Sınıf Şube</th><th>Adı Soyadı</th><th>Yüzde</th></tr></thead><tbody>' +
+      ranked.map(function (s) { return '<tr><td class="mono">' + esc(s.no) + '</td><td>' + esc(s.cls) + '</td><td>' + esc(s.name) + '</td><td class="mono">' + fmt(s.pct) + '</td></tr>'; }).join('') +
       '</tbody></table></div></details>';
   }
 
@@ -440,6 +466,8 @@ td.na { color: var(--muted); }
     var ks = $('#kSelect');
     if (!ks.options.length) { for (var k = 2; k <= 10; k++) { var o = document.createElement('option'); o.value = k; o.textContent = k; ks.appendChild(o); } }
     ks.value = state.k;
+    document.querySelectorAll('.seg-btn').forEach(function (btn) { btn.setAttribute('aria-pressed', String(btn.dataset.mode === state.mode)); });
+    $('#methodDesc').textContent = MODE_DESC[state.mode];
 
     $('#tabs').innerHTML = state.exams.map(function (e) {
       return '<button class="tab" role="tab" data-action="tab" data-id="' + e.id + '" aria-selected="' + (state.active === e.id) + '">' +
@@ -460,8 +488,8 @@ td.na { color: var(--muted); }
       (exam.groups && dl ? '<button data-action="xlsx">Excel indir</button>' : '') +
       '<span class="spacer"></span>' +
       '<button class="danger" data-action="delexam">Sınavı sil</button></div>' +
-      '<label class="check"><input type="checkbox" id="avoid"' + (state.avoid ? ' checked' : '') + '>' +
-      '<span>Başka bir sınavda aynı grupta olan öğrencileri ayır</span></label>';
+      (state.mode === 'balanced' ? '<label class="check"><input type="checkbox" id="avoid"' + (state.avoid ? ' checked' : '') + '>' +
+      '<span>Başka bir sınavda aynı grupta olan öğrencileri ayır</span></label>' : '');
 
     if (!n) {
       html += '<div class="empty"><h3>Önce puan tablosunu yükleyin</h3><p class="muted">Yükleme kutusunu kullanın.</p></div>';
@@ -479,7 +507,7 @@ td.na { color: var(--muted); }
       html += '<div class="summary"><div class="facts"><strong>' + n + ' öğrenci</strong>, ' + state.k + ' grup, her grupta ' + (mn === mx ? mn : mn + '–' + mx) + ' kişi</div>' +
         '<span class="badge plain">Ortalamalar ' + fmt(Math.min.apply(null, avgs)) + ' – ' + fmt(Math.max.apply(null, avgs)) + '</span>' +
         (others ? '<span class="badge ' + (rep ? 'warn' : 'good') + '">' + (rep ? rep + ' çift diğer sınavlarla tekrar ediyor' : 'Diğer sınavlarla tekrar eden çift yok') + '</span>' : '') + '</div>';
-      html += '<p class="muted" style="font-size:13px">Oturma düzeni mümkün olduğunca farklı sınıf seviyelerini dönüşümlü dizer. Yer değiştirmek için bir öğrenciye, sonra diğerine tıklayın.</p>';
+      html += '<p class="muted" style="font-size:13px">' + ((exam.mode || state.mode) === 'ranked' ? 'En yüksek Yüzde değerine sahip öğrenciler ilk grupta, en düşük olanlar son grupta yer alır. ' : '') + 'Her grupta öğrenciler en yüksek Yüzde değerinden en düşüğe doğru sıralanır. Yer değiştirmek için bir öğrenciye, sonra diğerine tıklayın.</p>';
       html += '<div class="groups">' + exam.groups.map(function (g, gx) {
         var counts = new Map();
         g.forEach(function (id) { var gr = map.get(id).grade; counts.set(gr, (counts.get(gr) || 0) + 1); });
@@ -507,7 +535,7 @@ td.na { color: var(--muted); }
     });
   }
   function sortedStudents() {
-    return state.students.slice().sort(function (a, b) { return a.grade - b.grade || a.cls.localeCompare(b.cls, 'tr') || a.name.localeCompare(b.name, 'tr'); });
+    return state.students.slice().sort(function (a, b) { return b.pct - a.pct || a.name.localeCompare(b.name, 'tr'); });
   }
   function renderMatrix() {
     if (!state.students.length) return '<div class="empty"><h3>Henüz öğrenci yok</h3></div>';
@@ -540,9 +568,9 @@ td.na { color: var(--muted); }
   }
   function tsvMatrix() {
     var where = matrixWhere();
-    var rows = [['Okul Nu', 'Adı Soyadı', 'Sınıf Şube', 'Yüzde'].concat(state.exams.map(function (e) { return e.name; })).join('\t')];
+    var rows = [['Okul Nu', 'Sınıf Şube', 'Adı Soyadı', 'Yüzde'].concat(state.exams.map(function (e) { return e.name; })).join('\t')];
     sortedStudents().forEach(function (s) {
-      rows.push([s.no, s.name, s.cls, fmt(s.pct)].concat(where.map(function (m) { return m.get(s.id) ? 'Grup ' + m.get(s.id) : ''; })).join('\t'));
+      rows.push([s.no, s.cls, s.name, fmt(s.pct)].concat(where.map(function (m) { return m.get(s.id) ? 'Grup ' + m.get(s.id) : ''; })).join('\t'));
     });
     return rows.join('\n');
   }
@@ -580,7 +608,7 @@ td.na { color: var(--muted); }
           margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.3, footer: 0.3 } }
       });
       var k = exam.groups.length, per = Math.min(3, k), lastCol = per * 5 - 1;
-      var widths = [5, 10, 30, 12, 3];
+      var widths = [5, 10, 12, 30, 3];
       for (var c = 1; c <= lastCol; c++) ws.getColumn(c).width = widths[(c - 1) % 5];
 
       ws.mergeCells(1, 1, 1, lastCol);
@@ -603,20 +631,20 @@ td.na { color: var(--muted); }
         h.font = { name: 'Calibri', size: 13, bold: true, color: argb('FFFFFF') };
         h.alignment = center;
         for (var cc = 1; cc < 4; cc++) ws.getCell(r0, c0 + cc).fill = fillOf(GROUP_COLORS[gx % GROUP_COLORS.length]);
-        ['#', 'Okul Nu', 'Adı Soyadı', 'Sınıf Şube'].forEach(function (txt, i) {
+        ['#', 'Okul Nu', 'Sınıf Şube', 'Adı Soyadı'].forEach(function (txt, i) {
           var cell = ws.getCell(r0 + 1, c0 + i);
           cell.value = txt; cell.fill = fillOf('E6EAF2');
           cell.font = { name: 'Calibri', size: 11, bold: true, color: argb(NAVY) };
-          cell.alignment = i === 2 ? left : center;
+          cell.alignment = i === 3 ? left : center;
         });
         for (var i = 0; i < maxSize; i++) {
           var s = g[i] ? map.get(g[i]) : null, r = r0 + 2 + i;
-          var vals = [s ? i + 1 : '', s ? s.no : '', s ? s.name : '', s ? s.cls : ''];
+          var vals = [s ? i + 1 : '', s ? s.no : '', s ? s.cls : '', s ? s.name : ''];
           for (var j = 0; j < 4; j++) {
             var cell = ws.getCell(r, c0 + j);
             cell.value = vals[j];
             cell.font = { name: 'Calibri', size: 11, color: argb(j === 0 ? '7A8699' : '142033') };
-            cell.alignment = j === 2 ? left : center;
+            cell.alignment = j === 3 ? left : center;
             if (i % 2 === 1) cell.fill = fillOf('F5F7FB');
           }
         }
@@ -629,25 +657,25 @@ td.na { color: var(--muted); }
     /* overview sheet: one row per student, one column per exam */
     var ov = wb.addWorksheet(sheetName('Tüm sınavlar', used), { views: [{ state: 'frozen', ySplit: 1, showGridLines: false }],
       pageSetup: { orientation: 'portrait', paperSize: 9, fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
-    var heads = ['Okul Nu', 'Adı Soyadı', 'Sınıf Şube', 'Yüzde'].concat(mixed.map(function (e) { return e.name; }));
-    var ow = [11, 30, 12, 10];
+    var heads = ['Okul Nu', 'Sınıf Şube', 'Adı Soyadı', 'Yüzde'].concat(mixed.map(function (e) { return e.name; }));
+    var ow = [11, 12, 30, 10];
     heads.forEach(function (txt, i) {
       var cell = ov.getCell(1, i + 1);
       cell.value = txt; cell.fill = fillOf(NAVY);
       cell.font = { name: 'Calibri', size: 11, bold: true, color: argb('FFFFFF') };
-      cell.alignment = i === 1 ? left : center;
+      cell.alignment = i === 2 ? left : center;
       ov.getColumn(i + 1).width = ow[i] || 14;
     });
     ov.getRow(1).height = 24;
     var where = mixed.map(function (e) { var m = new Map(); e.groups.forEach(function (g, gx) { g.forEach(function (id) { m.set(id, 'Grup ' + LETTERS[gx]); }); }); return m; });
     sortedStudents().forEach(function (s, ri) {
       var r = ri + 2;
-      var vals = [s.no, s.name, s.cls, Math.round(s.pct * 100) / 100].concat(where.map(function (m) { return m.get(s.id) || ''; }));
+      var vals = [s.no, s.cls, s.name, Math.round(s.pct * 100) / 100].concat(where.map(function (m) { return m.get(s.id) || ''; }));
       vals.forEach(function (v, i) {
         var cell = ov.getCell(r, i + 1);
         cell.value = v;
         cell.font = { name: 'Calibri', size: 11, color: argb('142033') };
-        cell.alignment = i === 1 ? left : center;
+        cell.alignment = i === 2 ? left : center;
         if (i === 3) cell.numFmt = '0.00';
         if (ri % 2 === 1) cell.fill = fillOf('F5F7FB');
       });
@@ -697,6 +725,14 @@ td.na { color: var(--muted); }
     else if (a === 'copy' && exam) copyText(tsvExam(exam));
     else if (a === 'copymatrix') copyText(tsvMatrix());
     else if (a === 'xlsx') downloadExcel();
+    else if (a === 'mode') {
+      if (b.dataset.mode === state.mode) return;
+      state.mode = b.dataset.mode;
+      var cur = activeExam(), remix = cur && cur.groups && state.students.length;
+      if (remix) { sel = null; mixExam(cur); }
+      save(); render();
+      say($('#rosterStatus'), 'Gruplama yöntemi: ' + MODE_NAME[state.mode] + (remix ? '. ' + cur.name + ' bu yönteme göre yeniden oluşturuldu.' : '.'), 'ok');
+    }
     else if (a === 'seat' && exam) {
       var g = +b.dataset.g, i = +b.dataset.i;
       if (!sel) sel = { e: exam.id, g: g, i: i };
@@ -705,6 +741,9 @@ td.na { color: var(--muted); }
         var t = exam.groups[sel.g][sel.i];
         exam.groups[sel.g][sel.i] = exam.groups[g][i];
         exam.groups[g][i] = t;
+        var mp = studentMap();
+        exam.groups[sel.g] = byScore(exam.groups[sel.g], mp);
+        exam.groups[g] = byScore(exam.groups[g], mp);
         sel = null; save();
       }
       render();
@@ -737,8 +776,9 @@ td.na { color: var(--muted); }
   /* ---------- boot ---------- */
   state = load();
   if (state && state.sample) state = null;
+  if (state && !state.mode) state.mode = 'ranked';
   if (!state) {
-    state = { students: [], k: 6, avoid: true, found: null, file: '', active: null, exams: [
+    state = { students: [], k: 6, mode: 'ranked', avoid: true, found: null, file: '', active: null, exams: [
       { id: uid(), name: 'Sınav 1', groups: null },
       { id: uid(), name: 'Sınav 2', groups: null },
       { id: uid(), name: 'Sınav 3', groups: null }
